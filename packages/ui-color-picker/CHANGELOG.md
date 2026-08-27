@@ -1,5 +1,16 @@
 # @clypra/ui-color-picker
 
+## 0.2.0
+
+### Minor Changes
+
+- Add Floating UI popover positioning engine (`@floating-ui/react`):
+  - Support `placement` (with `position` backward compatibility alias).
+  - Dynamic collision detection via `flip()`, boundary containment via `shift()`, and configurable distance via `offset()`.
+  - Automatic position recalculation on scroll/resize via `autoUpdate`.
+  - Export `ColorPickerPlacement`, `ColorPickerOffset`, and `ColorPickerStrategy` types.
+  - Comprehensive unit test coverage for floating placement calculations.
+
 ## 1.1.0
 
 ### Minor Changes
