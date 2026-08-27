@@ -38,7 +38,17 @@ export interface TextEffectConfig {
   fillColor: string;
   fillGradientAngle: number; // 0 - 360
   fillGradientStops: GradientStop[];
-  patternType?: "chalk" | "noise" | "grunge" | "carbon" | "stripes" | "film" | "brushed" | "marble" | "halftone" | "paper";
+  patternType?:
+    | "chalk"
+    | "noise"
+    | "grunge"
+    | "carbon"
+    | "stripes"
+    | "film"
+    | "brushed"
+    | "marble"
+    | "halftone"
+    | "paper";
 
   /** Pro: independent solid fill color per visible character (reading order) */
   perCharFillEnabled?: boolean;
@@ -137,7 +147,21 @@ export interface Preset {
   /** Cached scene graph (optional; built-ins use recipes cache) */
   scene?: import("./engine/schema").SceneDocument;
   isCustom?: boolean;
-  category?: "3d" | "Neon" | "Metallic" | "Glitch" | "Retro" | "Gradient" | "Grunge" | "Outline" | "Shadow" | "Elements" | "Luxury" | "Classic" | "Experimental" | string;
+  category?:
+    | "3d"
+    | "Neon"
+    | "Metallic"
+    | "Glitch"
+    | "Retro"
+    | "Gradient"
+    | "Grunge"
+    | "Outline"
+    | "Shadow"
+    | "Elements"
+    | "Luxury"
+    | "Classic"
+    | "Experimental"
+    | string;
   createdAt?: number;
 }
 
@@ -357,12 +381,34 @@ export interface EvaluatedTextLayer {
 
 // ─── Declarative Canvas Templates types ─────────────────────────────────────
 
-export type TemplateCategory = "lower-third" | "title-card" | "caption" | "callout" | "social" | "countdown";
+export type TemplateCategory =
+  | "lower-third"
+  | "title-card"
+  | "caption"
+  | "callout"
+  | "social"
+  | "countdown";
 
-export type AnimationPreset = "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right" | "scale-in" | "scale-out" | "blur-in" | "blur-out" | "typewriter" | "none";
+export type AnimationPreset =
+  | "fade"
+  | "slide-up"
+  | "slide-down"
+  | "slide-left"
+  | "slide-right"
+  | "scale-in"
+  | "scale-out"
+  | "blur-in"
+  | "blur-out"
+  | "typewriter"
+  | "none";
 
 // Keyframe System Types for Templates
-export type TemplateEasingFunction = "linear" | "ease-in-out" | "ease-in" | "ease-out" | "ease";
+export type TemplateEasingFunction =
+  | "linear"
+  | "ease-in-out"
+  | "ease-in"
+  | "ease-out"
+  | "ease";
 
 export interface TemplateKeyframe<T> {
   time: number; // Time in seconds
@@ -463,7 +509,10 @@ export interface TemplateImageLayer {
   animation: LayerAnimation;
 }
 
-export type TemplateLayer = TemplateTextLayer | TemplateShapeLayer | TemplateImageLayer;
+export type TemplateLayer =
+  | TemplateTextLayer
+  | TemplateShapeLayer
+  | TemplateImageLayer;
 
 export interface TextTemplate {
   id: string;
@@ -488,4 +537,94 @@ export interface TextTemplate {
   tags?: string[];
   creatorName?: string;
   creatorLink?: string;
+}
+
+/** GPU/GLSL color grading uniform parameters. Keys map to shader uniforms. */
+export interface GradingParams {
+  exposure?: number;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
+  tint?: number;
+  sepia?: number;
+  grayscale?: number;
+  hueRotate?: number;
+  vignette?: number;
+  invert?: number;
+  lift?: number;
+  highlights?: number;
+  shadows?: number;
+  whites?: number;
+  blacks?: number;
+  vibrance?: {
+    amount?: number;
+    protectedHue?: string;
+    [key: string]: number | string | boolean | undefined;
+  };
+  grain?: {
+    amount?: number;
+    intensity?: number;
+    size?: number;
+    roughness?: number;
+    [key: string]: number | string | boolean | undefined;
+  };
+  crossProcess?: {
+    amount?: number;
+    style?: string;
+    [key: string]: number | string | boolean | undefined;
+  };
+  channelMix?: {
+    r: number;
+    g: number;
+    b: number;
+    [key: string]: number | string | boolean;
+  };
+  duotone?: {
+    darkColor: string;
+    lightColor: string;
+    [key: string]: number | string | boolean;
+  };
+  splitTone?: {
+    shadowColor: string;
+    shadowStrength: number;
+    highlightColor: string;
+    highlightStrength: number;
+    balance: number;
+    [key: string]: number | string | boolean;
+  };
+  halation?: {
+    color: string;
+    threshold: number;
+    intensity: number;
+    [key: string]: number | string | boolean;
+  };
+  [key: string]:
+    | number
+    | boolean
+    | string
+    | Record<string, number | string | boolean | undefined>
+    | undefined;
+}
+
+/** Per-clip color adjustment values applied in the ColorAdjustmentsEffect. */
+export interface ColorAdjustments {
+  exposure?: number;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
+  tint?: number;
+  highlights?: number;
+  shadows?: number;
+  whites?: number;
+  blacks?: number;
+  hueRotate?: number;
+  hue?: number;
+  blur?: number;
+  invert?: boolean | number;
+  vibrance?: { amount?: number; protectedHue?: string };
+  grain?: { amount?: number; intensity?: number; size?: number; roughness?: number };
+  crossProcess?: { amount?: number; style?: string };
+  [key: string]: number | boolean | string | Record<string, unknown> | undefined;
 }
