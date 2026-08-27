@@ -248,6 +248,20 @@ export interface EffectStack {
 // ────────────────────────────────────────────────────────────────────────────
 
 export interface EffectFullDefinition extends EffectIndexItem {
+  schemaVersion?: number;
+  revisionId?: string;
+  contentHash?: string;
+  rendererVersion?: string;
+  revision?: {
+    assetId: string;
+    revisionId: string;
+    schemaVersion: number;
+    contentHash: string;
+    rendererVersion: string;
+    createdAt: string;
+  };
+  /** Canonical scene snapshot published alongside legacy fields. */
+  scene?: import("./engine/schema").SceneDocument;
   version?: string;
   description: string;
   tags: string[];
@@ -398,6 +412,13 @@ export interface TemplateTextLayer {
   backgroundBorderWidth?: AnimatableValue<number>; // Border/stroke width in pixels
   animation: LayerAnimation;
   role?: "primary" | "secondary" | "accent" | "none";
+  styleRef?: {
+    effectId: string;
+    revisionId: string;
+    contentHash: string;
+    snapshot?: import("./engine/schema").SceneDocument;
+    parameterOverrides?: Record<string, unknown>;
+  };
   overflow?: "wrap" | "shrink" | "expand-panel" | "clip";
   verticalAlign?: "top" | "middle" | "bottom";
   /** Studio-only UI state; ignored by render/export. */
@@ -446,14 +467,22 @@ export type TemplateLayer = TemplateTextLayer | TemplateShapeLayer | TemplateIma
 
 export interface TextTemplate {
   id: string;
+  schemaVersion?: number;
   label: string;
   category: TemplateCategory;
   duration: number;
+  fps?: number;
   canvasWidth: number;
   canvasHeight: number;
   thumbnail?: string;
   preview?: string;
   layers: TemplateLayer[];
+  dependencies?: Array<{
+    effectId: string;
+    revisionId: string;
+    contentHash: string;
+    snapshot?: import("./engine/schema").SceneDocument;
+  }>;
   published?: boolean;
   description?: string;
   tags?: string[];

@@ -123,7 +123,7 @@ export function updateScenePanel(
       panelStrokeWidth: patch.strokeWidth ?? 2,
     };
     const newL: EffectLayer = {
-      id: newLayerId(),
+      id: "panel",
       type: "panel",
       name: "Background Panel",
       enabled: patch.enabled ?? true,

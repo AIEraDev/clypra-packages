@@ -5,7 +5,7 @@ import { ensureDefaultTimeline } from "./timelineDefaults";
 
 function layer(type: EffectLayer["type"], name: string, params: Record<string, unknown>, extra?: Partial<EffectLayer>): EffectLayer {
   return {
-    id: newLayerId(),
+    id: extra?.id ?? newLayerId(),
     type,
     name,
     enabled: true,
@@ -36,6 +36,7 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         {
           enabled: true,
           target: "scene",
+          id: "custom-engine",
         },
       ),
     );
@@ -47,6 +48,7 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         {
           enabled: true,
           target: "text",
+          id: "custom-engine-params",
         },
       ),
     );
@@ -67,12 +69,12 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         panelStrokeColor: cfg.panelStrokeColor,
         panelStrokeWidth: cfg.panelStrokeWidth,
       },
-      { enabled: cfg.panelEnabled },
+      { enabled: cfg.panelEnabled, id: "panel" },
     ),
   );
 
   (cfg.glowLayers || []).forEach((g: GlowLayer, i: number) => {
-    layers.push(layer("glow", `Glow ${i + 1}`, { ...g }, { enabled: g.enabled, opacity: (g.opacity ?? 100) / 100 }));
+    layers.push(layer("glow", `Glow ${i + 1}`, { ...g }, { id: `glow-${i + 1}`, enabled: g.enabled, opacity: (g.opacity ?? 100) / 100 }));
   });
 
   layers.push(
@@ -88,7 +90,7 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         shadowOpacity: cfg.shadowOpacity,
         shadowType: cfg.shadowType,
       },
-      { enabled: cfg.shadowEnabled },
+      { enabled: cfg.shadowEnabled, id: "shadow" },
     ),
   );
 
@@ -112,7 +114,7 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         bevelVanishingPointY: cfg.bevelVanishingPointY,
         bevelFocalLength: cfg.bevelFocalLength,
       },
-      { enabled: cfg.bevelEnabled },
+      { enabled: cfg.bevelEnabled, id: "extrusion" },
     ),
   );
 
@@ -131,7 +133,7 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         stackColor3: cfg.stackColor3,
         stackColor4: cfg.stackColor4,
       },
-      { enabled: !!cfg.stackEnabled },
+      { enabled: !!cfg.stackEnabled, id: "duplicate-stack" },
     ),
   );
 
@@ -152,7 +154,7 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         strokeWidthSecondary: cfg.strokeWidthSecondary,
         strokeFadeRange: cfg.strokeFadeRange,
       },
-      { enabled: cfg.strokeEnabled },
+      { enabled: cfg.strokeEnabled, id: "stroke" },
     ),
   );
 
@@ -169,16 +171,17 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
         perCharFillEnabled: cfg.perCharFillEnabled,
         charFillColors: cfg.charFillColors,
       },
-      { enabled: cfg.fillType !== "none" },
+      { enabled: cfg.fillType !== "none", id: "fill" },
     ),
   );
 
-  layers.push(layer("mask", "Text Alpha Mask", { maskType: "alphaText", revealProgress: 1 }, { enabled: false }));
+  layers.push(layer("mask", "Text Alpha Mask", { maskType: "alphaText", revealProgress: 1 }, { enabled: false, id: "mask" }));
 
-  layers.push(layer("filter", "Compositor FX", { blur: 0, bloom: 0 }, { enabled: false, target: "previous" }));
+  layers.push(layer("filter", "Compositor FX", { blur: 0, bloom: 0 }, { enabled: false, target: "previous", id: "compositor" }));
 
   const doc: SceneDocument = {
     version: 1,
+    schemaVersion: 2,
     effectName: cfg.effectName,
     canvas: {
       width: cfg.canvasWidth,
@@ -259,7 +262,7 @@ export function sceneToConfig(doc: SceneDocument): TextEffectConfig {
   const panel = getLayerParams<Record<string, unknown>>(doc, "panel");
   if (panel) {
     Object.assign(base, {
-      panelEnabled: panel.panelEnabled,
+      panelEnabled: !!doc.effectLayers.find((l) => l.type === "panel")?.enabled && panel.panelEnabled !== false,
       panelColor: panel.panelColor,
       panelOpacity: panel.panelOpacity,
       panelRadius: panel.panelRadius,
@@ -295,16 +298,16 @@ export function sceneToConfig(doc: SceneDocument): TextEffectConfig {
   }
 
   const shadow = getLayerParams<Record<string, unknown>>(doc, "shadow");
-  if (shadow) Object.assign(base, shadow);
+  if (shadow) Object.assign(base, { ...shadow, shadowEnabled: !!doc.effectLayers.find((l) => l.type === "shadow")?.enabled && shadow.shadowEnabled !== false });
 
   const extrusion = getLayerParams<Record<string, unknown>>(doc, "extrusion");
-  if (extrusion) Object.assign(base, extrusion);
+  if (extrusion) Object.assign(base, { ...extrusion, bevelEnabled: !!doc.effectLayers.find((l) => l.type === "extrusion")?.enabled && extrusion.bevelEnabled !== false });
 
   const stack = getLayerParams<Record<string, unknown>>(doc, "duplicateStack");
-  if (stack) Object.assign(base, stack);
+  if (stack) Object.assign(base, { ...stack, stackEnabled: !!doc.effectLayers.find((l) => l.type === "duplicateStack")?.enabled && stack.stackEnabled !== false });
 
   const stroke = getLayerParams<Record<string, unknown>>(doc, "stroke");
-  if (stroke) Object.assign(base, stroke);
+  if (stroke) Object.assign(base, { ...stroke, strokeEnabled: !!doc.effectLayers.find((l) => l.type === "stroke")?.enabled && stroke.strokeEnabled !== false });
 
   const fill = getLayerParams<Record<string, unknown>>(doc, "fill");
   if (fill) Object.assign(base, fill);
@@ -456,8 +459,9 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
     if (stroke.fadeRange !== undefined) config.strokeFadeRange = stroke.fadeRange;
   }
 
-  // Drop / inner shadow
-  config.shadowEnabled = !!shadow;
+  // Drop / inner shadow. Canonical definitions may retain a disabled shadow
+  // object for editing/history, so presence alone must not enable rendering.
+  config.shadowEnabled = !!shadow && (shadow as any).enabled !== false;
   if (shadow) {
     if (shadow.color !== undefined) config.shadowColor = shadow.color;
     if (shadow.blur !== undefined) config.shadowBlur = shadow.blur * ratio;
@@ -504,8 +508,10 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
     if (effect.stack.color4 !== undefined) config.stackColor4 = effect.stack.color4;
   }
 
-  // Panel / background
-  config.panelEnabled = !!panel;
+  // Panel / background. Studio can serialize the panel object even when the
+  // control is disabled; preserve that explicit state instead of treating
+  // object presence as an instruction to render a plate.
+  config.panelEnabled = !!panel && (panel as any).enabled !== false;
   if (panel) {
     if (panel.color !== undefined) config.panelColor = panel.color;
     if (panel.opacity !== undefined) config.panelOpacity = panel.opacity;
@@ -523,10 +529,11 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
   }
 
   // Glow layers
-  if (effect.glows) {
-    config.glowLayers = effect.glows.map((g: any) => {
+  if (effect.glows || effect.glow) {
+    const sourceGlows = effect.glows ?? [effect.glow];
+    config.glowLayers = sourceGlows.map((g: any) => {
       const mappedGlow: any = {
-        enabled: true,
+        enabled: g.enabled !== false,
         color: g.color,
         blur: typeof g.blur === "number" ? g.blur * ratio : (g.blur ?? 0),
         opacity: g.opacity,

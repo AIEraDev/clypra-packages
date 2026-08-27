@@ -306,7 +306,18 @@ export const TextLayerSchema = z.object({
   paddingRight: z.number().min(0).optional(),
   paddingBottom: z.number().min(0).optional(),
   paddingLeft: z.number().min(0).optional(),
-});
+  fontWeight: z.number().finite().optional(),
+  fontStyle: z.enum(["normal", "italic"]).optional(),
+  letterSpacing: z.number().finite().optional(),
+  lineHeight: z.number().positive().optional(),
+  styleRef: z.object({
+    effectId: z.string().min(1),
+    revisionId: z.string().min(1),
+    contentHash: z.string().min(1),
+    snapshot: z.unknown().optional(),
+    parameterOverrides: z.record(z.string(), z.unknown()).optional(),
+  }).optional(),
+}).passthrough();
 
 export const ShapeLayerSchema = z.object({
   kind: z.literal("shape"),
@@ -322,7 +333,7 @@ export const ShapeLayerSchema = z.object({
   width: z.number().nonnegative(),
   height: z.number().nonnegative(),
   animation: LayerAnimationSchema
-});
+}).passthrough();
 
 export const ImageLayerSchema = z.object({
   kind: z.literal("image"),
@@ -333,7 +344,7 @@ export const ImageLayerSchema = z.object({
   width: z.number().nonnegative(),
   height: z.number().nonnegative(),
   animation: LayerAnimationSchema
-});
+}).passthrough();
 
 export const TemplateLayerSchema = z.discriminatedUnion("kind", [
   TextLayerSchema,
@@ -344,17 +355,25 @@ export const TemplateLayerSchema = z.discriminatedUnion("kind", [
 export const TextTemplateSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
+  schemaVersion: z.literal(2).optional(),
   category: TemplateCategorySchema,
   duration: z.number().positive(),
+  fps: z.number().positive().optional(),
   canvasWidth: z.number().positive(),
   canvasHeight: z.number().positive(),
   thumbnail: z.string().optional(),
   preview: z.string().optional(),
   layers: z.array(TemplateLayerSchema),
+  dependencies: z.array(z.object({
+    effectId: z.string().min(1),
+    revisionId: z.string().min(1),
+    contentHash: z.string().min(1),
+    snapshot: z.unknown().optional(),
+  })).optional(),
   published: z.boolean().optional(),
   creatorName: z.string().optional(),
   creatorLink: z.string().optional()
-});
+}).passthrough();
 
 export function validateTextTemplate(data: unknown) {
   return TextTemplateSchema.safeParse(data);
@@ -365,4 +384,3 @@ export function validateTextTemplateStrict(data: unknown) {
 }
 
 export type ValidatedTextTemplate = z.infer<typeof TextTemplateSchema>;
-

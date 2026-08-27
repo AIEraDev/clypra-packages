@@ -1,6 +1,7 @@
 import type { TextEffectConfig, GlowLayer, GradientStop } from "../types";
 
 export const SCENE_VERSION = 1 as const;
+export const SCENE_SCHEMA_VERSION = 2 as const;
 
 // ─── Canvas / text dimension defaults ─────────────────────────────────────────
 // Single source of truth. Every `|| 800`, `|| 200`, `|| 80` guard in renderer,
@@ -114,6 +115,8 @@ export interface Timeline {
 
 export interface SceneDocument {
   version: typeof SCENE_VERSION;
+  /** Canonical wire/schema version. `version` is retained for legacy callers. */
+  schemaVersion?: typeof SCENE_SCHEMA_VERSION;
   effectName: string;
   canvas: SceneCanvas;
   text: SceneText;
@@ -122,6 +125,15 @@ export interface SceneDocument {
   engineParams?: Record<string, unknown>;
   compositor: CompositorSettings;
   timeline: Timeline;
+  /** Immutable catalog identity when this scene is published. */
+  revision?: {
+    assetId: string;
+    revisionId: string;
+    schemaVersion: number;
+    contentHash: string;
+    rendererVersion: string;
+    createdAt: string;
+  };
   /** Legacy flat config cache for gradual UI migration */
   legacyConfig?: TextEffectConfig;
   /** Deep Research extension snippet (not executed until sandboxed) */
@@ -142,6 +154,7 @@ export interface StyleRecipe {
 export function createEmptyScene(overrides?: Partial<SceneDocument>): SceneDocument {
   return {
     version: SCENE_VERSION,
+    schemaVersion: SCENE_SCHEMA_VERSION,
     effectName: "My Effect",
     canvas: { width: DEFAULT_CANVAS_WIDTH, height: DEFAULT_CANVAS_HEIGHT, background: "transparent" },
     text: {

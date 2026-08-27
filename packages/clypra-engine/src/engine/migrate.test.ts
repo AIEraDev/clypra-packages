@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { defaultConfig } from "../presets";
 import type { Preset } from "../types";
-import { textEffectConfigToScene, sceneToConfig } from "./migrate";
+import { _buildConfig, textEffectConfigToScene, sceneToConfig } from "./migrate";
 import { blendConfigs } from "./blend";
 import { getPresetScene } from "./recipes";
 
@@ -44,6 +44,41 @@ describe("textEffectConfigToScene migration", () => {
     const back = sceneToConfig(scene);
     expect(back.perCharFillEnabled).toBe(true);
     expect(back.charFillColors?.slice(0, 3)).toEqual(["#ff0000", "#00ff00", "#0000ff"]);
+  });
+
+  it("preserves explicit disabled effect objects from canonical Studio definitions", () => {
+    const definition = {
+      id: "disabled-properties",
+      name: "Disabled Properties",
+      category: "outline",
+      font: {
+        family: "Poppins",
+        weight: 700,
+        style: "normal",
+        letterSpacing: 0,
+        lineHeight: 1.2,
+      },
+      fills: [{ type: "solid", color: "#ffffff" }],
+      strokes: [],
+      shadows: [{ enabled: false, color: "#000000", blur: 20, offsetX: 4, offsetY: 4 }],
+      glows: [{ enabled: false, color: "#ffffff", blur: 95, opacity: 100, type: "outer" }],
+      panel: {
+        enabled: false,
+        color: "#ffffff",
+        opacity: 80,
+        radius: 12,
+        paddingX: 40,
+        paddingY: 20,
+      },
+    } as any;
+
+    const config = _buildConfig(definition, "CLYPRA", 100, 800, 200);
+
+    expect(config.shadowEnabled).toBe(false);
+    expect(config.panelEnabled).toBe(false);
+    expect(config.glowLayers).toEqual([
+      expect.objectContaining({ enabled: false, blur: 95 }),
+    ]);
   });
 
   it("blends two configs", () => {

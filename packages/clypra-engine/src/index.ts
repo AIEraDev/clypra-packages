@@ -35,6 +35,7 @@ export * from "./engine/mask.js";
 export * from "./engine/timelineDefaults.js";
 export * from "./engine/timelineMutations.js";
 export * from "./engine/api.js";
+export * from "./contracts.js";
 // Platform capability detection and canvas utilities
 export * from "./platform.js";
 export * from "./canvas-utils.js";

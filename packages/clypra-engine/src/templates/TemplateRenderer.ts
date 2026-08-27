@@ -2,6 +2,8 @@ import { TextTemplate, TemplateLayer, TemplateTextLayer, TemplateShapeLayer, Tem
 import { evaluateAnimatable } from "./keyframes";
 import { wrapTextToWidth } from "../engine/textLayout";
 import { resolveFontFamilyName } from "../engine/migrate";
+import { evaluateTextTemplate, type RenderPlan, normalizeTextTemplate } from "../contracts";
+import { evaluateScene } from "../engine/evaluate";
 
 // Newton-Raphson approximation solver for cubic bezier curve easing
 export function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
@@ -38,8 +40,13 @@ export class TemplateRenderer {
   private lastLayerLayouts = new Map<string, { x: number; y: number; width: number; height: number }>();
 
   constructor(template: TextTemplate) {
-    this.template = template;
+    this.template = normalizeTextTemplate(template) as TextTemplate;
     this.editedValues = new Map();
+  }
+
+  /** Exposes the shared deterministic template evaluation contract. */
+  getRenderPlan(time = this.currentTime): RenderPlan {
+    return evaluateTextTemplate(this.template, time);
   }
 
   updateLayer(layerId: string, changes: Partial<TemplateLayer>): void {
@@ -441,6 +448,36 @@ export class TemplateRenderer {
     }
 
     this.lastLayerLayouts.set(resolved.id, { x: bgX, y: bgY, width: bgWidth, height: bgHeight });
+
+    // A pinned effect owns its own bleed (glow/shadow/stroke). Render it before
+    // the template overflow clip so those pixels are not incorrectly cut off.
+    const styleRef = (resolved as any).styleRef;
+    if (styleRef?.snapshot?.effectLayers) {
+      const effectCanvas = typeof OffscreenCanvas !== "undefined"
+        ? new OffscreenCanvas(Math.max(1, Math.ceil(bgWidth)), Math.max(1, Math.ceil(bgHeight)))
+        : typeof document !== "undefined"
+          ? Object.assign(document.createElement("canvas"), {
+              width: Math.max(1, Math.ceil(bgWidth)),
+              height: Math.max(1, Math.ceil(bgHeight)),
+            })
+          : null;
+      const effectCtx = effectCanvas?.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+      if (effectCtx) {
+        const effectScene = JSON.parse(JSON.stringify(styleRef.snapshot));
+        effectScene.canvas.width = Math.max(1, Math.ceil(bgWidth));
+        effectScene.canvas.height = Math.max(1, Math.ceil(bgHeight));
+        effectScene.text.content = textToDraw;
+        effectScene.text.fontFamily = rawFontFamily;
+        effectScene.text.fontSize = adjustedFontSize;
+        effectScene.text.fontWeight = fontWeight;
+        effectScene.text.textPosX = "center";
+        effectScene.text.textPosY = "middle";
+        evaluateScene(effectScene, this.currentTime, effectCtx);
+        ctx.drawImage(effectCanvas as CanvasImageSource, bgX, bgY, bgWidth, bgHeight);
+        ctx.restore();
+        return;
+      }
+    }
 
     // Content area (where text lives)
     let contentX = bgX + pl;
