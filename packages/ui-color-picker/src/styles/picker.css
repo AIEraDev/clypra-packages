@@ -5,7 +5,7 @@
 
 /* Portal Layer */
 .clypra-color-picker-portal {
-  position: fixed !important;
+  position: fixed;
   z-index: 999999 !important;
   pointer-events: auto !important;
 }

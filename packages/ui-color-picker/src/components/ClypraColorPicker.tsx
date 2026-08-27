@@ -113,6 +113,8 @@ const ClypraColorPickerInner = forwardRef<ClypraColorPickerHandle, ClypraColorPi
       showEyeDropper = true,
       showCopyButton = true,
       showHarmonies = true,
+      showTriggerValue = true,
+      showChevron = true,
       placement,
       position,
       offset = 6,
@@ -260,6 +262,7 @@ const ClypraColorPickerInner = forwardRef<ClypraColorPickerHandle, ClypraColorPi
       open: isOpen && !inline,
       placement: resolvedPlacement,
       strategy,
+      transform: false,
       whileElementsMounted: autoUpdate ? floatingAutoUpdate : undefined,
       middleware,
     });
@@ -735,13 +738,15 @@ const ClypraColorPickerInner = forwardRef<ClypraColorPickerHandle, ClypraColorPi
         data-placement={computedPlacement}
         data-side={side}
         data-align={align}
-        className={`clypra-color-picker-portal clypra-animate-popover-enter ${popoverClassName}`}
+        className={`clypra-color-picker-portal ${popoverClassName}`}
         style={{
           ...floatingStyles,
           zIndex: 999999,
         }}
       >
-        {pickerPanelContent}
+        <div className="clypra-animate-popover-enter">
+          {pickerPanelContent}
+        </div>
       </div>
     );
 
@@ -756,6 +761,8 @@ const ClypraColorPickerInner = forwardRef<ClypraColorPickerHandle, ClypraColorPi
           disabled={disabled}
           size={size}
           label={label}
+          showValue={showTriggerValue}
+          showChevron={showChevron}
           className={triggerClassName}
         />
 

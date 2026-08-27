@@ -80,4 +80,32 @@ describe('Floating UI positioning support in ClypraColorPicker', () => {
     expect(dialog).toBeDefined();
     expect(dialog.getAttribute('data-placement')).toBe('bottom-end');
   });
+
+  it('keeps entrance animation on the inner panel to prevent transform overrides of portal positioning', () => {
+    render(<ClypraColorPicker defaultValue="#8B5CF6" placement="left-start" />);
+    const trigger = screen.getByRole('button', { name: /Choose color/i });
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog');
+    // Outer floating dialog must not have clypra-animate-popover-enter because that overrides transform
+    expect(dialog.classList.contains('clypra-color-picker-portal')).toBe(true);
+    expect(dialog.classList.contains('clypra-animate-popover-enter')).toBe(false);
+
+    // Inner container must have the animation class
+    const animatedInner = dialog.querySelector('.clypra-animate-popover-enter');
+    expect(animatedInner).not.toBeNull();
+  });
+
+  it('supports compact swatch trigger without value text or chevron', () => {
+    render(
+      <ClypraColorPicker
+        defaultValue="#EF4444"
+        showTriggerValue={false}
+        showChevron={false}
+      />
+    );
+    const trigger = screen.getByRole('button');
+    expect(trigger.querySelector('svg')).toBeNull();
+    expect(trigger.textContent).toBe('');
+  });
 });

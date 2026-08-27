@@ -1,5 +1,15 @@
 # @clypra/ui-color-picker
 
+## 0.2.1
+
+### Patch Changes
+
+- Fix popover teleporting to top-left corner (0,0) of the window caused by CSS animation `transform` overriding Floating UI's `translate(Xpx, Ypx)` positioning.
+  - Added `transform: false` to `useFloating` — Floating UI now uses exact `left/top` pixel positioning instead of transforms.
+  - Moved `.clypra-animate-popover-enter` from the portal container to an inner wrapper so the entrance animation no longer conflicts with viewport coordinates.
+  - Added `showTriggerValue` and `showChevron` props to `ColorTrigger` for compact swatch-only rendering.
+  - Removed `!important` from `position: fixed` in `picker.css` to allow Floating UI styles to apply cleanly.
+
 ## 0.2.0
 
 ### Minor Changes

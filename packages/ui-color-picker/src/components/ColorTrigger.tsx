@@ -15,6 +15,7 @@ export interface ColorTriggerProps {
   label?: string;
   className?: string;
   showValue?: boolean;
+  showChevron?: boolean;
 }
 
 const SIZE_STYLES: Record<ColorSize, { button: string; swatch: string; text: string }> = {
@@ -46,10 +47,12 @@ export const ColorTrigger = React.forwardRef<HTMLButtonElement, ColorTriggerProp
       label,
       className = '',
       showValue = true,
+      showChevron = true,
     },
     ref
   ) => {
     const sizeConfig = SIZE_STYLES[size] || SIZE_STYLES.md;
+    const isCompactSwatch = !label && !showValue && !showChevron;
 
     return (
       <button
@@ -60,16 +63,20 @@ export const ColorTrigger = React.forwardRef<HTMLButtonElement, ColorTriggerProp
         aria-expanded={isOpen}
         aria-label={label ? `${label}: ${color}` : `Choose color, current: ${color}`}
         onClick={onClick}
-        className={`group relative inline-flex items-center justify-between bg-zinc-900/90 hover:bg-zinc-800/90 active:bg-zinc-950 border border-white/10 hover:border-white/20 rounded-lg text-zinc-200 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 shadow-sm ${
+        className={`group relative inline-flex items-center ${
+          isCompactSwatch ? 'justify-center p-0' : 'justify-between'
+        } bg-zinc-900/90 hover:bg-zinc-800/90 active:bg-zinc-950 border border-white/10 hover:border-white/20 rounded-lg text-zinc-200 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 shadow-sm ${
           sizeConfig.button
         } ${isOpen ? 'ring-2 ring-violet-500/50 border-violet-500/50' : ''} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         } ${className}`}
       >
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center ${isCompactSwatch ? 'justify-center w-full h-full' : 'gap-2'}`}>
           {/* Swatch with checkerboard backplate */}
           <div
-            className={`clypra-checkerboard-sm relative border border-white/20 overflow-hidden shadow-inner flex-shrink-0 ${sizeConfig.swatch}`}
+            className={`clypra-checkerboard-sm relative border border-white/20 overflow-hidden shadow-inner flex-shrink-0 ${
+              isCompactSwatch ? 'w-full h-full rounded-[inherit]' : sizeConfig.swatch
+            }`}
           >
             <div
               className="clypra-live-preview absolute inset-0 w-full h-full"
@@ -83,16 +90,18 @@ export const ColorTrigger = React.forwardRef<HTMLButtonElement, ColorTriggerProp
         </div>
 
         {/* Subtle Chevron / Indicator */}
-        <svg
-          className={`w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-violet-400' : ''
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        {showChevron && (
+          <svg
+            className={`w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-transform duration-150 ${
+              isOpen ? 'rotate-180 text-violet-400' : ''
+            }`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        )}
       </button>
     );
   }

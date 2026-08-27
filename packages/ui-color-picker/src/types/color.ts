@@ -251,6 +251,18 @@ export interface ClypraColorPickerProps {
   label?: string;
 
   /**
+   * Whether to show the value string inside the trigger button.
+   * Defaults to true.
+   */
+  showTriggerValue?: boolean;
+
+  /**
+   * Whether to show the chevron icon inside the trigger button.
+   * Defaults to true.
+   */
+  showChevron?: boolean;
+
+  /**
    * Whether to show the eye dropper tool if supported.
    * Defaults to true.
    */
