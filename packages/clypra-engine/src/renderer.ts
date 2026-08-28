@@ -1,9 +1,8 @@
 import { TextEffectConfig } from "./types";
 import { computeTextLayout } from "./engine/textLayout";
 import { drawPerCharText, shouldUsePerCharFill } from "./engine/perCharFill";
-import { InkBrushEngine } from "./engine/procedural/InkBrushEngine";
 import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT } from "./engine/schema";
-import { createCanvas } from "./platform";
+import { createCanvas, releaseCanvas } from "./platform";
 import { drawRoundedRect } from "./canvas-utils";
 import { seededRandom, textSeed, hexToRgb, mixHexColor } from "./engine/procedural/utils";
 
@@ -26,12 +25,6 @@ function ctxSupportsFilter(ctx: any): boolean {
 }
 
 export function renderTextEffectCore(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, cfg: TextEffectConfig): void {
-  if (cfg.customRenderer === "InkBrushEngine") {
-    const engine = new InkBrushEngine(cfg);
-    engine.drawFrame(ctx);
-    return;
-  }
-
   const { text, fontFamily, fontWeight, fontStyle, fontSize, letterSpacing, lineHeight, fillType, fillColor, fillGradientAngle, fillGradientStops, patternType, strokeEnabled, strokeColor, strokeWidth, strokePosition, strokeOpacity, strokeLineJoin, strokeBlur, strokeType, strokeColorSecondary, strokeWidthSecondary, strokeFadeRange, glowLayers, shadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, shadowOpacity, shadowType, bevelEnabled, bevelDepth, bevelHighlight, bevelShadow, bevelDirection, bevelCoreColor, bevelEdgeColor, bevelEdgeWidth, bevelBlur, bevelBlurColor, bevelPerspectiveEnabled, bevelVanishingPointX, bevelVanishingPointY, bevelFocalLength, stackEnabled, stackCount, stackOffsetX, stackOffsetY, stackOpacityDecay, stackColor1, stackColor2, stackColor3, stackColor4, panelEnabled, panelColor, panelOpacity, panelRadius, panelPaddingX, panelPaddingY, panelStrokeEnabled, panelStrokeColor, panelStrokeWidth, canvasWidth, canvasHeight, textPosX, textPosY } = cfg;
 
   // 1. Initial configuration
@@ -254,6 +247,93 @@ export function renderTextEffectCore(ctx: CanvasRenderingContext2D | OffscreenCa
     ctx.restore();
   };
 
+  /**
+   * Render a glow into an isolated alpha buffer and composite only the glow.
+   *
+   * The previous implementation projected a shadow from x=-10000 back onto
+   * the canvas. That is fast on some browsers, but it is not deterministic:
+   * WebKit and native canvas implementations can clip or quantize that large
+   * offset, producing a rectangular halo or no visible glow at all. An
+   * isolated buffer uses the same Canvas 2D shadow primitive without relying
+   * on an off-canvas projection and works for both outer and inner glows.
+   */
+  const renderGlowLayer = (
+    layer: { color: string; blur: number; opacity: number; spread?: number; strength?: number; type: "outer" | "inner" },
+  ): boolean => {
+    let glowCanvas: HTMLCanvasElement | OffscreenCanvas | null = null;
+    try {
+      glowCanvas = createCanvas(Math.max(1, Math.ceil(cWidth)), Math.max(1, Math.ceil(cHeight)));
+      const glowCtx = getCanvas2DContext(glowCanvas);
+      if (!glowCtx) return false;
+
+      glowCtx.clearRect(0, 0, cWidth, cHeight);
+      glowCtx.save();
+      glowCtx.font = fontStr;
+      glowCtx.textAlign = align;
+      glowCtx.textBaseline = "alphabetic";
+      if (letterSpacing !== 0) (glowCtx as any).letterSpacing = `${letterSpacing}px`;
+      glowCtx.globalAlpha = Math.max(0, Math.min(100, layer.opacity)) / 100;
+      glowCtx.fillStyle = layer.color;
+      glowCtx.strokeStyle = layer.color;
+      const spread = Math.max(0, layer.spread ?? 0);
+      if (spread > 0) {
+        glowCtx.lineWidth = spread * 2;
+        glowCtx.lineJoin = strokeLineJoin;
+      }
+
+      const drawSource = () => {
+        lines.forEach((line, index) => {
+          const py = startY + index * lineAdvance;
+          if (spread > 0) glowCtx!.strokeText(line, startX, py);
+          glowCtx!.fillText(line, startX, py);
+        });
+      };
+
+      // Prefer a bounded blur on the isolated alpha surface. This avoids the
+      // huge-offset shadow projection that produces rectangular halos or no
+      // glow at all in WebKit/offscreen implementations.
+      const useFilter = ctxSupportsFilter(glowCtx as any);
+      if (useFilter) {
+        glowCtx.filter = `blur(${Math.max(0, layer.blur)}px)`;
+        drawSource();
+        glowCtx.filter = "none";
+      } else {
+        // Bounded Canvas shadow fallback for older native/browser surfaces.
+        glowCtx.shadowColor = layer.color;
+        glowCtx.shadowBlur = Math.max(0, layer.blur);
+        glowCtx.shadowOffsetX = 0;
+        glowCtx.shadowOffsetY = 0;
+        drawSource();
+        glowCtx.shadowColor = "transparent";
+        glowCtx.shadowBlur = 0;
+      }
+
+      // Remove the unblurred source itself so only the glow bleed remains.
+      glowCtx.globalCompositeOperation = "destination-out";
+      glowCtx.globalAlpha = 1;
+      drawSource();
+      glowCtx.restore();
+
+      ctx.save();
+      if (layer.type === "inner") {
+        // The destination is the already-rendered text silhouette. source-atop
+        // clips the isolated glow to that alpha without creating a background.
+        ctx.globalCompositeOperation = "source-atop";
+      }
+      ctx.globalAlpha = 1;
+      const passes = Math.max(1, Math.min(20, layer.strength ?? 1));
+      for (let pass = 0; pass < passes; pass += 1) {
+        ctx.drawImage(glowCanvas as CanvasImageSource, 0, 0);
+      }
+      ctx.restore();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (glowCanvas) releaseCanvas(glowCanvas);
+    }
+  };
+
   // ──────────────────────────────────────────────────────────────────
   // 1. Background Panel
   // ──────────────────────────────────────────────────────────────────
@@ -319,9 +399,11 @@ export function renderTextEffectCore(ctx: CanvasRenderingContext2D | OffscreenCa
   // ──────────────────────────────────────────────────────────────────
   glowLayers.forEach((layer) => {
     if (layer.enabled && layer.type === "outer" && layer.opacity > 0) {
-      const renderCount = Math.max(1, Math.min(20, layer.strength ?? 1));
-      for (let i = 0; i < renderCount; i++) {
-        renderWithShadowTrick("fill", layer.color, layer.blur, 0, 0, layer.opacity, "#000", layer.spread ?? 0);
+      if (!renderGlowLayer(layer)) {
+        const renderCount = Math.max(1, Math.min(20, layer.strength ?? 1));
+        for (let i = 0; i < renderCount; i += 1) {
+          renderWithShadowTrick("fill", layer.color, layer.blur, 0, 0, layer.opacity, "#000", layer.spread ?? 0);
+        }
       }
     }
   });
@@ -1515,10 +1597,12 @@ export function renderTextEffectCore(ctx: CanvasRenderingContext2D | OffscreenCa
   glowLayers.forEach((layer) => {
     if (layer.enabled && layer.type === "inner" && layer.opacity > 0) {
       ctx.save();
-      ctx.globalCompositeOperation = "source-atop";
-      const renderCount = Math.max(1, Math.min(20, layer.strength ?? 1));
-      for (let i = 0; i < renderCount; i++) {
-        renderWithShadowTrick("fill", layer.color, layer.blur, 0, 0, layer.opacity, "#000000", layer.spread ?? 0);
+      if (!renderGlowLayer(layer)) {
+        ctx.globalCompositeOperation = "source-atop";
+        const renderCount = Math.max(1, Math.min(20, layer.strength ?? 1));
+        for (let i = 0; i < renderCount; i += 1) {
+          renderWithShadowTrick("fill", layer.color, layer.blur, 0, 0, layer.opacity, "#000000", layer.spread ?? 0);
+        }
       }
       ctx.restore();
     }

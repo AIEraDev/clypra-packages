@@ -5,7 +5,7 @@ import type {
   TemplateTextLayer,
   TextTemplate,
 } from "./types";
-import { _buildConfig, textEffectConfigToScene } from "./engine/migrate";
+import { _buildConfig, sceneToConfig, textEffectConfigToScene } from "./engine/migrate";
 import {
   SCENE_SCHEMA_VERSION,
   type EffectLayer,
@@ -125,16 +125,40 @@ function stableLayerId(layer: EffectLayer, index: number, counts: Map<string, nu
 
 export function canonicalizeSceneDocument(input: SceneDocument): SceneDocumentV2 {
   const doc = clone(input);
+  // Old scene payloads may contain custom-engine metadata. It is read only and
+  // must never survive into the canonical document or renderer diagnostics.
+  const legacyDoc = doc as SceneDocument & { customEngineId?: unknown; engineParams?: unknown };
+  delete legacyDoc.customEngineId;
+  delete legacyDoc.engineParams;
+  if (doc.legacyConfig) {
+    const legacyConfig = doc.legacyConfig as unknown as Record<string, unknown>;
+    for (const key of [
+      "customRenderer",
+      "inkColor",
+      "bristleDensity",
+      "bristleSkipRate",
+      "dripRate",
+      "dripMaxLength",
+      "grainDensity",
+      "skewX",
+    ]) delete legacyConfig[key];
+  }
   const idMap = new Map<string, string>();
   const counts = new Map<string, number>();
-  const effectLayers = doc.effectLayers.map((layer) => {
-    const id = stableLayerId(layer, 0, counts);
+  const usedIds = new Set<string>();
+  const effectLayers = doc.effectLayers.filter((layer) => (layer.type as string) !== "customEngine").map((layer) => {
+    let id = stableLayerId(layer, 0, counts);
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${id}-${suffix++}`;
+    usedIds.add(id);
+    const effectiveEnabled = layer.enabled !== false && layer.params.enabled !== false;
     idMap.set(layer.id, id);
     return {
       ...layer,
       id,
-      enabled: layer.enabled !== false,
+      enabled: effectiveEnabled,
       opacity: Number.isFinite(layer.opacity) ? layer.opacity : 1,
+      params: { ...layer.params, enabled: effectiveEnabled },
     };
   });
   const timeline = {
@@ -319,13 +343,31 @@ export function normalizeTextTemplate(
 }
 
 function activeEffectDiagnostics(scene: SceneDocumentV2): RenderDiagnostic[] {
-  return scene.effectLayers.map((layer) => ({
+  const config = sceneToConfig(scene);
+  const glowLayers = scene.effectLayers.filter((layer) => layer.type === "glow");
+  return scene.effectLayers.map((layer) => {
+    const glowIndex = glowLayers.indexOf(layer);
+    const semanticEnabled = (() => {
+      switch (layer.type) {
+        case "panel": return config.panelEnabled;
+        case "glow": return config.glowLayers[glowIndex]?.enabled === true;
+        case "shadow": return config.shadowEnabled;
+        case "extrusion": return config.bevelEnabled;
+        case "duplicateStack": return config.stackEnabled;
+        case "stroke": return config.strokeEnabled;
+        case "fill": return config.fillType !== "none";
+        default: return true;
+      }
+    })();
+    const contributes = layer.enabled === true && layer.opacity > 0 && layer.params.enabled !== false && semanticEnabled === true;
+    return {
     layerId: layer.id,
     layerType: layer.type,
-    enabled: layer.enabled,
-    contribution: layer.enabled ? "active" : "disabled",
-    reason: layer.enabled ? `${layer.name} is enabled` : `${layer.name} is explicitly disabled`,
-  }));
+    enabled: contributes,
+    contribution: contributes ? "active" : "disabled",
+    reason: contributes ? `${layer.name} is enabled` : `${layer.name} is explicitly disabled`,
+    };
+  });
 }
 
 function capabilities(target: RenderTarget, unsupportedFeatures: string[] = []): CapabilityReport {
@@ -343,7 +385,7 @@ export function evaluateTextEffect(
   const scene = normalizeTextEffect(document);
   const evaluated = canonicalizeSceneDocument(applyTimelineAtTime(scene, time));
   const diagnostics = activeEffectDiagnostics(evaluated);
-  const unsupported = evaluated.customEngineId ? [`custom-engine:${evaluated.customEngineId}`] : [];
+  const unsupported: string[] = [];
   return {
     kind: "text-effect",
     width: evaluated.canvas.width,

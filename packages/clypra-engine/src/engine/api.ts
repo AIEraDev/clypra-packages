@@ -1,5 +1,5 @@
 import type { TextEffectConfig, GlowLayer, GradientStop, TextEffectDefinition } from "../types";
-import { type SceneDocument, type EffectLayer, newLayerId, LEGACY_RENDERER_MAP } from "./schema";
+import { type SceneDocument, type EffectLayer, newLayerId } from "./schema";
 import { textEffectConfigToScene, sceneToConfig, _buildConfig } from "./migrate";
 import { defaultConfig } from "../presets";
 
@@ -785,68 +785,6 @@ export function updateSceneCanvas(
   };
 }
 
-/**
- * Updates Custom/Procedural Engine parameters (like Ink Brush) on a SceneDocument.
- */
-export function updateSceneCustomEngine(
-  doc: SceneDocument,
-  patch: Partial<{
-    customRenderer: string;
-    inkColor: string;
-    bristleDensity: number;
-    bristleSkipRate: number;
-    dripRate: number;
-    dripMaxLength: number;
-    grainDensity: number;
-    skewX: number;
-  }>
-): SceneDocument {
-  let nextEngineId = doc.customEngineId;
-  if (patch.customRenderer !== undefined) {
-    nextEngineId = patch.customRenderer ? (LEGACY_RENDERER_MAP[patch.customRenderer] ?? null) : null;
-  }
-
-  const nextParams = { ...doc.engineParams, ...patch };
-  delete nextParams.customRenderer;
-
-  const nextLayers = doc.effectLayers.map((layer) => {
-    if (layer.type === "customEngine") {
-      if (layer.name === "Custom Engine") {
-        return {
-          ...layer,
-          params: { ...layer.params, engineId: nextEngineId },
-        };
-      } else if (layer.name === "Engine Params") {
-        return {
-          ...layer,
-          params: { ...layer.params, ...nextParams },
-        };
-      }
-    }
-    return layer;
-  });
-
-  const nextLegacyConfig = doc.legacyConfig ? { ...doc.legacyConfig } : undefined;
-  if (nextLegacyConfig) {
-    if (patch.customRenderer !== undefined) nextLegacyConfig.customRenderer = patch.customRenderer;
-    if (patch.inkColor !== undefined) nextLegacyConfig.inkColor = patch.inkColor;
-    if (patch.bristleDensity !== undefined) nextLegacyConfig.bristleDensity = patch.bristleDensity;
-    if (patch.bristleSkipRate !== undefined) nextLegacyConfig.bristleSkipRate = patch.bristleSkipRate;
-    if (patch.dripRate !== undefined) nextLegacyConfig.dripRate = patch.dripRate;
-    if (patch.dripMaxLength !== undefined) nextLegacyConfig.dripMaxLength = patch.dripMaxLength;
-    if (patch.grainDensity !== undefined) nextLegacyConfig.grainDensity = patch.grainDensity;
-    if (patch.skewX !== undefined) nextLegacyConfig.skewX = patch.skewX;
-  }
-
-  return {
-    ...doc,
-    customEngineId: nextEngineId,
-    engineParams: nextParams,
-    effectLayers: nextLayers,
-    legacyConfig: nextLegacyConfig,
-  };
-}
-
 // ─── Fluent TextEffectBuilder Class ──────────────────────────────────────────
 
 /**
@@ -1107,28 +1045,6 @@ export class TextEffectBuilder {
     if (canvas.posY !== undefined) this.config.textPosY = canvas.posY;
     if (canvas.wrapText !== undefined) this.config.wrapText = canvas.wrapText;
     if (canvas.autoFitText !== undefined) this.config.autoFitText = canvas.autoFitText;
-    return this;
-  }
-
-  /** Configure procedural InkBrushEngine variables (when customRenderer = InkBrushEngine) */
-  setInkBrush(
-    ink: Partial<{
-      inkColor: string;
-      bristleDensity: number;
-      bristleSkipRate: number;
-      dripRate: number;
-      dripMaxLength: number;
-      grainDensity: number;
-      skewX: number;
-    }>
-  ): this {
-    if (ink.inkColor !== undefined) this.config.inkColor = ink.inkColor;
-    if (ink.bristleDensity !== undefined) this.config.bristleDensity = ink.bristleDensity;
-    if (ink.bristleSkipRate !== undefined) this.config.bristleSkipRate = ink.bristleSkipRate;
-    if (ink.dripRate !== undefined) this.config.dripRate = ink.dripRate;
-    if (ink.dripMaxLength !== undefined) this.config.dripMaxLength = ink.dripMaxLength;
-    if (ink.grainDensity !== undefined) this.config.grainDensity = ink.grainDensity;
-    if (ink.skewX !== undefined) this.config.skewX = ink.skewX;
     return this;
   }
 

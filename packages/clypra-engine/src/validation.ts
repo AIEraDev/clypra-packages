@@ -13,6 +13,7 @@ export const GradientStopSchema = z.object({
 
 // ── Effect Fill Schema ──────────────────────────────────────────────────────
 export const EffectFillSchema = z.object({
+  enabled: z.boolean().optional(),
   type: z.enum(["solid", "linear", "radial", "pattern", "none"]),
   color: z.string().optional(),
   gradient: z
@@ -28,6 +29,7 @@ export const EffectFillSchema = z.object({
 
 // ── Effect Stroke Schema ────────────────────────────────────────────────────
 export const EffectStrokeSchema = z.object({
+  enabled: z.boolean().optional(),
   color: z.string(),
   width: z.number().min(0),
   position: z.enum(["outside", "center", "inside"]).optional(),
@@ -44,6 +46,7 @@ export const EffectStrokeSchema = z.object({
 // Supports both nested (current) and flat (legacy) offset structures
 export const EffectShadowSchema = z
   .object({
+    enabled: z.boolean().optional(),
     type: z.enum(["drop", "inner"]).optional(),
     color: z.string(),
     blur: z.number().min(0),
@@ -63,6 +66,7 @@ export const EffectShadowSchema = z
 // Supports both new (highlight/shadow) and legacy (highlightColor/shadowColor) property names
 export const EffectBevelSchema = z
   .object({
+    enabled: z.boolean().optional(),
     depth: z.number().min(0),
     highlight: z.string().optional(), // Current Studio output
     highlightColor: z.string().optional(), // Legacy format
@@ -84,6 +88,7 @@ export const EffectBevelSchema = z
 
 // ── Effect Glow Schema ──────────────────────────────────────────────────────
 export const EffectGlowSchema = z.object({
+  enabled: z.boolean().optional(),
   color: z.string(),
   blur: z.number().min(0),
   opacity: z.number().min(0).max(100),
@@ -96,6 +101,7 @@ export const EffectGlowSchema = z.object({
 // Supports both nested (current) and flat (legacy) padding structures
 export const EffectPanelSchema = z
   .object({
+    enabled: z.boolean().optional(),
     color: z.string(),
     opacity: z.number().min(0).max(100),
     radius: z.number().min(0),
@@ -109,6 +115,7 @@ export const EffectPanelSchema = z
     paddingY: z.number().min(0).optional(), // Legacy flat format
     stroke: z
       .object({
+        enabled: z.boolean().optional(),
         color: z.string(),
         width: z.number().min(0),
       })
@@ -119,10 +126,13 @@ export const EffectPanelSchema = z
 
 // ── Effect Stack Schema ─────────────────────────────────────────────────────
 export const EffectStackSchema = z.object({
+  enabled: z.boolean().optional(),
   count: z.number().int().min(1).max(100),
   offsetX: z.number(),
   offsetY: z.number(),
-  opacityDecay: z.number().min(0).max(1),
+  // Accept legacy 0..1 values and canonical Studio percentage values; the
+  // migration normalizes both to the runtime's 0..100 representation.
+  opacityDecay: z.number().min(0).max(100),
   color1: z.string().optional(),
   color2: z.string().optional(),
   color3: z.string().optional(),

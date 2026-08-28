@@ -5,7 +5,7 @@ export const SCENE_SCHEMA_VERSION = 2 as const;
 
 // ─── Canvas / text dimension defaults ─────────────────────────────────────────
 // Single source of truth. Every `|| 800`, `|| 200`, `|| 80` guard in renderer,
-// textLayout, evaluate, and InkBrushEngine should import these instead of
+// textLayout and evaluate should import these instead of
 // repeating the magic number.
 
 /** Default canvas width in pixels. */
@@ -19,21 +19,9 @@ export const DEFAULT_FPS = 30 as const;
 /** Default timeline duration in seconds for new scenes. */
 export const DEFAULT_DURATION = 2 as const;
 
-export type EffectLayerType = "panel" | "glow" | "shadow" | "extrusion" | "duplicateStack" | "stroke" | "fill" | "mask" | "filter" | "customEngine";
+export type EffectLayerType = "panel" | "glow" | "shadow" | "extrusion" | "duplicateStack" | "stroke" | "fill" | "mask" | "filter";
 
 export type LayerTarget = "text" | "panel" | "scene" | "previous";
-
-export type CustomEngineId = "ink";
-
-export const CUSTOM_ENGINE_IDS: CustomEngineId[] = ["ink"];
-
-export const LEGACY_RENDERER_MAP: Record<string, CustomEngineId> = {
-  InkBrushEngine: "ink",
-};
-
-export const ENGINE_ID_TO_LEGACY: Record<CustomEngineId, string> = {
-  ink: "InkBrushEngine",
-};
 
 export interface CanvasBackgroundConfig {
   type: "solid" | "gradient" | "shader" | "media";
@@ -121,8 +109,6 @@ export interface SceneDocument {
   canvas: SceneCanvas;
   text: SceneText;
   effectLayers: EffectLayer[];
-  customEngineId: CustomEngineId | null;
-  engineParams?: Record<string, unknown>;
   compositor: CompositorSettings;
   timeline: Timeline;
   /** Immutable catalog identity when this scene is published. */
@@ -147,7 +133,6 @@ export interface StyleRecipe {
   layers: EffectLayer[];
   exposed: string[];
   tags: string[];
-  customEngineId?: CustomEngineId | null;
   scene?: SceneDocument;
 }
 
@@ -169,7 +154,6 @@ export function createEmptyScene(overrides?: Partial<SceneDocument>): SceneDocum
       textPosY: "middle",
     },
     effectLayers: [],
-    customEngineId: null,
     compositor: { blur: 0, bloom: 0, bloomThreshold: 0.6 },
     timeline: { duration: DEFAULT_DURATION, fps: DEFAULT_FPS, loop: true, tracks: [] },
     ...overrides,

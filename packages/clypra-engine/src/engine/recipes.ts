@@ -28,7 +28,6 @@ export function presetToRecipe(preset: Preset): StyleRecipe {
       "glow.0.opacity",
     ],
     tags: [preset.category || "Classic", preset.id],
-    customEngineId: scene.customEngineId,
     scene,
   };
 }
@@ -43,8 +42,6 @@ export function applyRecipeToScene(
     ...base,
     effectName: recipe.name,
     effectLayers: structuredClone(recipe.layers),
-    customEngineId: recipe.customEngineId ?? null,
-    engineParams: recipe.scene?.engineParams,
     compositor: recipe.scene?.compositor ?? base.compositor,
     timeline: recipe.scene?.timeline ?? base.timeline,
   };

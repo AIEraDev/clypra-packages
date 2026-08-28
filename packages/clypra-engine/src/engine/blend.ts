@@ -120,8 +120,6 @@ export function blendScenes(sceneA: SceneDocument, sceneB: SceneDocument, ratio:
       textPosY: ratio > 0.5 ? sceneB.text.textPosY : sceneA.text.textPosY,
     },
     effectLayers: layers,
-    customEngineId: ratio > 0.5 ? sceneB.customEngineId : sceneA.customEngineId,
-    engineParams: sceneA.engineParams && sceneB.engineParams ? blendLayerParams(sceneA.engineParams as Record<string, unknown>, sceneB.engineParams as Record<string, unknown>, ratio) : ratio > 0.5 ? sceneB.engineParams : sceneA.engineParams,
     compositor: {
       blur: mixFloat(sceneA.compositor.blur, sceneB.compositor.blur, ratio),
       bloom: mixFloat(sceneA.compositor.bloom, sceneB.compositor.bloom, ratio),

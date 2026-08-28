@@ -131,7 +131,6 @@ export function shouldUsePerCharFill(cfg: TextEffectConfig): boolean {
   return (
     !!cfg.perCharFillEnabled &&
     cfg.fillType === "solid" &&
-    !cfg.customRenderer &&
     (cfg.charFillColors?.length ?? 0) > 0
   );
 }

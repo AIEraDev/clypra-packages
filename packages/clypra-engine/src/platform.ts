@@ -149,7 +149,7 @@ export function createCanvas(width: number, height: number): HTMLCanvasElement |
  * than waiting for GC. Call this after extracting ImageBitmap/ImageData.
  */
 export function releaseCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
-  if (canvas instanceof OffscreenCanvas) return; // GC handles OffscreenCanvas backing stores
+  if (typeof OffscreenCanvas !== "undefined" && canvas instanceof OffscreenCanvas) return; // GC handles OffscreenCanvas backing stores
   // Setting dimensions to 0 releases the GPU/memory backing store immediately.
   // The parentNode check was previously here but createCanvas never appends to the
   // DOM, so it was always a no-op. Direct width=0 is the correct release mechanism.

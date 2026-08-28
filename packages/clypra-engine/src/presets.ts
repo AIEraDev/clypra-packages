@@ -79,15 +79,33 @@ export const defaultConfig: TextEffectConfig = {
   textPosY: "middle",
   wrapText: true,
   autoFitText: false,
-
-  // Ink Brush custom properties
-  inkColor: "#FFFFFF",
-  bristleDensity: 0.8,
-  bristleSkipRate: 0.2,
-  dripRate: 0.3,
-  dripMaxLength: 40,
-  grainDensity: 0.15,
-  skewX: -0.2,
 };
+
+/**
+ * Return a fresh, explicit blank authoring state.
+ *
+ * A blank state is intentionally different from a loosely spread object:
+ * every optional visual contributor is disabled while its parameters remain
+ * present for the controls and the canonical scene migration. This prevents
+ * object presence (panel/glow/shadow/etc.) from being interpreted as active.
+ */
+export function createBlankTextEffectConfig(): TextEffectConfig {
+  return {
+    ...defaultConfig,
+    text: "MY TEXT",
+    effectName: "Custom Effect",
+    strokeEnabled: false,
+    shadowEnabled: false,
+    bevelEnabled: false,
+    stackEnabled: false,
+    panelEnabled: false,
+    panelStrokeEnabled: false,
+    perCharFillEnabled: false,
+    glowLayers: defaultConfig.glowLayers.map((layer) => ({
+      ...layer,
+      enabled: false,
+    })),
+  };
+}
 
 export const builtInPresets: Preset[] = [];

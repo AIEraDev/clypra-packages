@@ -11,7 +11,6 @@ import {
   updateSceneFill,
   updateSceneGlow,
   updateSceneCanvas,
-  updateSceneCustomEngine,
   TextEffectBuilder,
 } from "./api";
 import type { TextEffectDefinition } from "../types";
@@ -213,22 +212,6 @@ describe("Clypra Engine Programmatic API", () => {
       expect(updated.legacyConfig?.canvasHeight).toBe(1080);
     });
 
-    it("updates scene custom engine parameters", () => {
-      const scene = textEffectConfigToScene({
-        ...defaultConfig,
-        customRenderer: "InkBrushEngine",
-      });
-
-      const updated = updateSceneCustomEngine(scene, {
-        inkColor: "#FF00FF",
-        bristleDensity: 0.5,
-      });
-
-      expect(updated.engineParams?.inkColor).toBe("#FF00FF");
-      expect(updated.engineParams?.bristleDensity).toBe(0.5);
-      expect(updated.legacyConfig?.inkColor).toBe("#FF00FF");
-      expect(updated.legacyConfig?.bristleDensity).toBe(0.5);
-    });
   });
 
   describe("TextEffectBuilder", () => {

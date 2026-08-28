@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultConfig } from "../presets";
+import { defaultConfig, createBlankTextEffectConfig } from "../presets";
 import type { Preset } from "../types";
 import { _buildConfig, textEffectConfigToScene, sceneToConfig } from "./migrate";
 import { blendConfigs } from "./blend";
@@ -13,6 +13,19 @@ const samplePreset: Preset = {
 };
 
 describe("textEffectConfigToScene migration", () => {
+  it("creates a fresh blank state with every decorative contributor explicitly disabled", () => {
+    const blank = createBlankTextEffectConfig();
+    const scene = textEffectConfigToScene(blank);
+
+    expect(blank.glowLayers.every((layer) => layer.enabled === false)).toBe(true);
+    expect(blank.strokeEnabled).toBe(false);
+    expect(blank.shadowEnabled).toBe(false);
+    expect(blank.bevelEnabled).toBe(false);
+    expect(blank.stackEnabled).toBe(false);
+    expect(blank.panelEnabled).toBe(false);
+    expect(scene.effectLayers.filter((layer) => layer.type !== "fill").every((layer) => layer.enabled === false)).toBe(true);
+  });
+
   it("round-trips default config without losing key fields", () => {
     const scene = textEffectConfigToScene(defaultConfig);
     const back = sceneToConfig(scene);

@@ -1,6 +1,6 @@
 import type { TextEffectConfig, GlowLayer, TextEffectDefinition, EvaluatedTextLayer } from "../types";
 import { defaultConfig } from "../presets";
-import { type SceneDocument, type EffectLayer, type CustomEngineId, newLayerId, LEGACY_RENDERER_MAP, ENGINE_ID_TO_LEGACY } from "./schema";
+import { type SceneDocument, type EffectLayer, newLayerId } from "./schema";
 import { ensureDefaultTimeline } from "./timelineDefaults";
 
 function layer(type: EffectLayer["type"], name: string, params: Record<string, unknown>, extra?: Partial<EffectLayer>): EffectLayer {
@@ -17,64 +17,55 @@ function layer(type: EffectLayer["type"], name: string, params: Record<string, u
   };
 }
 
-export function resolveCustomEngineId(cfg: TextEffectConfig): CustomEngineId | null {
-  if (!cfg.customRenderer) return null;
-  return LEGACY_RENDERER_MAP[cfg.customRenderer] ?? null;
+const REMOVED_INK_FIELDS = [
+  "customRenderer",
+  "inkColor",
+  "bristleDensity",
+  "bristleSkipRate",
+  "dripRate",
+  "dripMaxLength",
+  "grainDensity",
+  "skewX",
+] as const;
+
+/**
+ * Read compatibility only: old Studio/editor payloads may still contain Ink
+ * Brush fields. They are intentionally discarded before a canonical scene is
+ * created, so no renderer, layer, or published document can activate them.
+ */
+function stripRemovedRendererFields<T extends Record<string, unknown>>(value: T): T {
+  const out = { ...value } as T;
+  for (const key of REMOVED_INK_FIELDS) delete (out as Record<string, unknown>)[key];
+  return out;
 }
 
 /** Lossless migration from flat TextEffectConfig to SceneDocument */
 export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
-  const engineId = resolveCustomEngineId(cfg);
+  const safeConfig = stripRemovedRendererFields(cfg as unknown as Record<string, unknown>) as unknown as TextEffectConfig;
   const layers: EffectLayer[] = [];
-
-  if (engineId) {
-    layers.push(
-      layer(
-        "customEngine",
-        "Custom Engine",
-        { engineId },
-        {
-          enabled: true,
-          target: "scene",
-          id: "custom-engine",
-        },
-      ),
-    );
-    layers.push(
-      layer(
-        "customEngine",
-        "Engine Params",
-        { ...collectEngineParams(cfg, engineId) },
-        {
-          enabled: true,
-          target: "text",
-          id: "custom-engine-params",
-        },
-      ),
-    );
-  }
 
   layers.push(
     layer(
       "panel",
       "Background Panel",
       {
-        panelEnabled: cfg.panelEnabled,
-        panelColor: cfg.panelColor,
-        panelOpacity: cfg.panelOpacity,
-        panelRadius: cfg.panelRadius,
-        panelPaddingX: cfg.panelPaddingX,
-        panelPaddingY: cfg.panelPaddingY,
-        panelStrokeEnabled: cfg.panelStrokeEnabled,
-        panelStrokeColor: cfg.panelStrokeColor,
-        panelStrokeWidth: cfg.panelStrokeWidth,
+        enabled: safeConfig.panelEnabled,
+        panelEnabled: safeConfig.panelEnabled,
+        panelColor: safeConfig.panelColor,
+        panelOpacity: safeConfig.panelOpacity,
+        panelRadius: safeConfig.panelRadius,
+        panelPaddingX: safeConfig.panelPaddingX,
+        panelPaddingY: safeConfig.panelPaddingY,
+        panelStrokeEnabled: safeConfig.panelStrokeEnabled,
+        panelStrokeColor: safeConfig.panelStrokeColor,
+        panelStrokeWidth: safeConfig.panelStrokeWidth,
       },
-      { enabled: cfg.panelEnabled, id: "panel" },
+      { enabled: safeConfig.panelEnabled, id: "panel" },
     ),
   );
 
-  (cfg.glowLayers || []).forEach((g: GlowLayer, i: number) => {
-    layers.push(layer("glow", `Glow ${i + 1}`, { ...g }, { id: `glow-${i + 1}`, enabled: g.enabled, opacity: (g.opacity ?? 100) / 100 }));
+  (safeConfig.glowLayers || []).forEach((g: GlowLayer, i: number) => {
+    layers.push(layer("glow", `Glow ${i + 1}`, { ...g, enabled: g.enabled }, { id: `glow-${i + 1}`, enabled: g.enabled, opacity: (g.opacity ?? 100) / 100 }));
   });
 
   layers.push(
@@ -82,15 +73,16 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
       "shadow",
       "Shadow",
       {
-        shadowEnabled: cfg.shadowEnabled,
-        shadowColor: cfg.shadowColor,
-        shadowBlur: cfg.shadowBlur,
-        shadowOffsetX: cfg.shadowOffsetX,
-        shadowOffsetY: cfg.shadowOffsetY,
-        shadowOpacity: cfg.shadowOpacity,
-        shadowType: cfg.shadowType,
+        enabled: safeConfig.shadowEnabled,
+        shadowEnabled: safeConfig.shadowEnabled,
+        shadowColor: safeConfig.shadowColor,
+        shadowBlur: safeConfig.shadowBlur,
+        shadowOffsetX: safeConfig.shadowOffsetX,
+        shadowOffsetY: safeConfig.shadowOffsetY,
+        shadowOpacity: safeConfig.shadowOpacity,
+        shadowType: safeConfig.shadowType,
       },
-      { enabled: cfg.shadowEnabled, id: "shadow" },
+      { enabled: safeConfig.shadowEnabled, id: "shadow" },
     ),
   );
 
@@ -99,22 +91,23 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
       "extrusion",
       "Bevel / Extrusion",
       {
-        bevelEnabled: cfg.bevelEnabled,
-        bevelDepth: cfg.bevelDepth,
-        bevelHighlight: cfg.bevelHighlight,
-        bevelShadow: cfg.bevelShadow,
-        bevelDirection: cfg.bevelDirection,
-        bevelCoreColor: cfg.bevelCoreColor,
-        bevelEdgeColor: cfg.bevelEdgeColor,
-        bevelEdgeWidth: cfg.bevelEdgeWidth,
-        bevelBlur: cfg.bevelBlur,
-        bevelBlurColor: cfg.bevelBlurColor,
-        bevelPerspectiveEnabled: cfg.bevelPerspectiveEnabled,
-        bevelVanishingPointX: cfg.bevelVanishingPointX,
-        bevelVanishingPointY: cfg.bevelVanishingPointY,
-        bevelFocalLength: cfg.bevelFocalLength,
+        enabled: safeConfig.bevelEnabled,
+        bevelEnabled: safeConfig.bevelEnabled,
+        bevelDepth: safeConfig.bevelDepth,
+        bevelHighlight: safeConfig.bevelHighlight,
+        bevelShadow: safeConfig.bevelShadow,
+        bevelDirection: safeConfig.bevelDirection,
+        bevelCoreColor: safeConfig.bevelCoreColor,
+        bevelEdgeColor: safeConfig.bevelEdgeColor,
+        bevelEdgeWidth: safeConfig.bevelEdgeWidth,
+        bevelBlur: safeConfig.bevelBlur,
+        bevelBlurColor: safeConfig.bevelBlurColor,
+        bevelPerspectiveEnabled: safeConfig.bevelPerspectiveEnabled,
+        bevelVanishingPointX: safeConfig.bevelVanishingPointX,
+        bevelVanishingPointY: safeConfig.bevelVanishingPointY,
+        bevelFocalLength: safeConfig.bevelFocalLength,
       },
-      { enabled: cfg.bevelEnabled, id: "extrusion" },
+      { enabled: safeConfig.bevelEnabled, id: "extrusion" },
     ),
   );
 
@@ -123,17 +116,18 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
       "duplicateStack",
       "Stack Extrusion",
       {
-        stackEnabled: cfg.stackEnabled,
-        stackCount: cfg.stackCount,
-        stackOffsetX: cfg.stackOffsetX,
-        stackOffsetY: cfg.stackOffsetY,
-        stackOpacityDecay: cfg.stackOpacityDecay,
-        stackColor1: cfg.stackColor1,
-        stackColor2: cfg.stackColor2,
-        stackColor3: cfg.stackColor3,
-        stackColor4: cfg.stackColor4,
+        enabled: !!safeConfig.stackEnabled,
+        stackEnabled: safeConfig.stackEnabled,
+        stackCount: safeConfig.stackCount,
+        stackOffsetX: safeConfig.stackOffsetX,
+        stackOffsetY: safeConfig.stackOffsetY,
+        stackOpacityDecay: safeConfig.stackOpacityDecay,
+        stackColor1: safeConfig.stackColor1,
+        stackColor2: safeConfig.stackColor2,
+        stackColor3: safeConfig.stackColor3,
+        stackColor4: safeConfig.stackColor4,
       },
-      { enabled: !!cfg.stackEnabled, id: "duplicate-stack" },
+      { enabled: !!safeConfig.stackEnabled, id: "duplicate-stack" },
     ),
   );
 
@@ -142,19 +136,20 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
       "stroke",
       "Stroke",
       {
-        strokeEnabled: cfg.strokeEnabled,
-        strokeColor: cfg.strokeColor,
-        strokeWidth: cfg.strokeWidth,
-        strokePosition: cfg.strokePosition,
-        strokeOpacity: cfg.strokeOpacity,
-        strokeLineJoin: cfg.strokeLineJoin,
-        strokeBlur: cfg.strokeBlur,
-        strokeType: cfg.strokeType,
-        strokeColorSecondary: cfg.strokeColorSecondary,
-        strokeWidthSecondary: cfg.strokeWidthSecondary,
-        strokeFadeRange: cfg.strokeFadeRange,
+        enabled: safeConfig.strokeEnabled,
+        strokeEnabled: safeConfig.strokeEnabled,
+        strokeColor: safeConfig.strokeColor,
+        strokeWidth: safeConfig.strokeWidth,
+        strokePosition: safeConfig.strokePosition,
+        strokeOpacity: safeConfig.strokeOpacity,
+        strokeLineJoin: safeConfig.strokeLineJoin,
+        strokeBlur: safeConfig.strokeBlur,
+        strokeType: safeConfig.strokeType,
+        strokeColorSecondary: safeConfig.strokeColorSecondary,
+        strokeWidthSecondary: safeConfig.strokeWidthSecondary,
+        strokeFadeRange: safeConfig.strokeFadeRange,
       },
-      { enabled: cfg.strokeEnabled, id: "stroke" },
+      { enabled: safeConfig.strokeEnabled, id: "stroke" },
     ),
   );
 
@@ -163,15 +158,16 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
       "fill",
       "Fill",
       {
-        fillType: cfg.fillType,
-        fillColor: cfg.fillColor,
-        fillGradientAngle: cfg.fillGradientAngle,
-        fillGradientStops: cfg.fillGradientStops,
-        patternType: cfg.patternType,
-        perCharFillEnabled: cfg.perCharFillEnabled,
-        charFillColors: cfg.charFillColors,
+        enabled: safeConfig.fillType !== "none",
+        fillType: safeConfig.fillType,
+        fillColor: safeConfig.fillColor,
+        fillGradientAngle: safeConfig.fillGradientAngle,
+        fillGradientStops: safeConfig.fillGradientStops,
+        patternType: safeConfig.patternType,
+        perCharFillEnabled: safeConfig.perCharFillEnabled,
+        charFillColors: safeConfig.charFillColors,
       },
-      { enabled: cfg.fillType !== "none", id: "fill" },
+      { enabled: safeConfig.fillType !== "none", id: "fill" },
     ),
   );
 
@@ -182,54 +178,36 @@ export function textEffectConfigToScene(cfg: TextEffectConfig): SceneDocument {
   const doc: SceneDocument = {
     version: 1,
     schemaVersion: 2,
-    effectName: cfg.effectName,
+    effectName: safeConfig.effectName,
     canvas: {
-      width: cfg.canvasWidth,
-      height: cfg.canvasHeight,
+      width: safeConfig.canvasWidth,
+      height: safeConfig.canvasHeight,
       background: "transparent",
     },
     text: {
-      content: cfg.text,
-      fontFamily: cfg.fontFamily,
-      fontWeight: cfg.fontWeight,
-      fontStyle: cfg.fontStyle,
-      fontSize: cfg.fontSize,
-      letterSpacing: cfg.letterSpacing,
-      lineHeight: cfg.lineHeight,
-      textPosX: cfg.textPosX,
-      textPosY: cfg.textPosY,
-      wrapText: cfg.wrapText !== false,
-      autoFitText: !!cfg.autoFitText,
-      perCharFillEnabled: cfg.perCharFillEnabled,
-      charFillColors: cfg.charFillColors,
+      content: safeConfig.text,
+      fontFamily: safeConfig.fontFamily,
+      fontWeight: safeConfig.fontWeight,
+      fontStyle: safeConfig.fontStyle,
+      fontSize: safeConfig.fontSize,
+      letterSpacing: safeConfig.letterSpacing,
+      lineHeight: safeConfig.lineHeight,
+      textPosX: safeConfig.textPosX,
+      textPosY: safeConfig.textPosY,
+      wrapText: safeConfig.wrapText !== false,
+      autoFitText: !!safeConfig.autoFitText,
+      perCharFillEnabled: safeConfig.perCharFillEnabled,
+      charFillColors: safeConfig.charFillColors,
     },
     effectLayers: layers,
-    customEngineId: engineId,
-    engineParams: engineId ? collectEngineParams(cfg, engineId) : undefined,
     compositor: { blur: 0, bloom: 0, bloomThreshold: 0.6 },
     timeline: { duration: 2, fps: 30, loop: true, tracks: [] },
-    legacyConfig: { ...cfg },
+    legacyConfig: { ...safeConfig },
   };
 
   return ensureDefaultTimeline(doc);
 }
 
-function collectEngineParams(cfg: TextEffectConfig, id: CustomEngineId): Record<string, unknown> {
-  switch (id) {
-    case "ink":
-      return {
-        inkColor: cfg.inkColor,
-        bristleDensity: cfg.bristleDensity,
-        bristleSkipRate: cfg.bristleSkipRate,
-        dripRate: cfg.dripRate,
-        dripMaxLength: cfg.dripMaxLength,
-        grainDensity: cfg.grainDensity,
-        skewX: cfg.skewX,
-      };
-    default:
-      return {};
-  }
-}
 
 function getLayerParams<T extends Record<string, unknown>>(doc: SceneDocument, type: EffectLayer["type"], index = 0): T | undefined {
   const found = doc.effectLayers.filter((l) => l.type === type);
@@ -239,7 +217,7 @@ function getLayerParams<T extends Record<string, unknown>>(doc: SceneDocument, t
 /** Flatten SceneDocument back to TextEffectConfig for legacy controls and renderer */
 export function sceneToConfig(doc: SceneDocument): TextEffectConfig {
   const base: TextEffectConfig = doc.legacyConfig
-    ? { ...doc.legacyConfig }
+    ? stripRemovedRendererFields(doc.legacyConfig as unknown as Record<string, unknown>) as unknown as TextEffectConfig
     : {
         ...createDefaultFromScene(doc),
       };
@@ -259,11 +237,16 @@ export function sceneToConfig(doc: SceneDocument): TextEffectConfig {
   base.canvasWidth = doc.canvas.width;
   base.canvasHeight = doc.canvas.height;
 
+  const withoutLayerEnabled = (params: Record<string, unknown>): Record<string, unknown> => {
+    const { enabled: _enabled, ...visualParams } = params;
+    return visualParams;
+  };
+
   const panel = getLayerParams<Record<string, unknown>>(doc, "panel");
   if (panel) {
     Object.assign(base, {
-      panelEnabled: !!doc.effectLayers.find((l) => l.type === "panel")?.enabled && panel.panelEnabled !== false,
-      panelColor: panel.panelColor,
+      panelEnabled: !!doc.effectLayers.find((l) => l.type === "panel")?.enabled && panel.enabled !== false && panel.panelEnabled !== false,
+      ...withoutLayerEnabled(panel),
       panelOpacity: panel.panelOpacity,
       panelRadius: panel.panelRadius,
       panelPaddingX: panel.panelPaddingX,
@@ -278,7 +261,7 @@ export function sceneToConfig(doc: SceneDocument): TextEffectConfig {
   base.glowLayers = glows.map((l) => {
     const p = l.params as unknown as GlowLayer;
     return {
-      enabled: l.enabled && (p.enabled ?? true),
+      enabled: l.enabled && (p.enabled ?? true) && (l.opacity ?? 1) > 0,
       color: p.color ?? "#7C6FFF",
       blur: p.blur ?? 20,
       opacity: Math.round((p.opacity ?? 80) * (l.opacity ?? 1)),
@@ -298,29 +281,22 @@ export function sceneToConfig(doc: SceneDocument): TextEffectConfig {
   }
 
   const shadow = getLayerParams<Record<string, unknown>>(doc, "shadow");
-  if (shadow) Object.assign(base, { ...shadow, shadowEnabled: !!doc.effectLayers.find((l) => l.type === "shadow")?.enabled && shadow.shadowEnabled !== false });
+  if (shadow) Object.assign(base, { ...withoutLayerEnabled(shadow), shadowEnabled: !!doc.effectLayers.find((l) => l.type === "shadow")?.enabled && shadow.enabled !== false && shadow.shadowEnabled !== false });
 
   const extrusion = getLayerParams<Record<string, unknown>>(doc, "extrusion");
-  if (extrusion) Object.assign(base, { ...extrusion, bevelEnabled: !!doc.effectLayers.find((l) => l.type === "extrusion")?.enabled && extrusion.bevelEnabled !== false });
+  if (extrusion) Object.assign(base, { ...withoutLayerEnabled(extrusion), bevelEnabled: !!doc.effectLayers.find((l) => l.type === "extrusion")?.enabled && extrusion.enabled !== false && extrusion.bevelEnabled !== false });
 
   const stack = getLayerParams<Record<string, unknown>>(doc, "duplicateStack");
-  if (stack) Object.assign(base, { ...stack, stackEnabled: !!doc.effectLayers.find((l) => l.type === "duplicateStack")?.enabled && stack.stackEnabled !== false });
+  if (stack) Object.assign(base, { ...withoutLayerEnabled(stack), stackEnabled: !!doc.effectLayers.find((l) => l.type === "duplicateStack")?.enabled && stack.enabled !== false && stack.stackEnabled !== false });
 
   const stroke = getLayerParams<Record<string, unknown>>(doc, "stroke");
-  if (stroke) Object.assign(base, { ...stroke, strokeEnabled: !!doc.effectLayers.find((l) => l.type === "stroke")?.enabled && stroke.strokeEnabled !== false });
+  if (stroke) Object.assign(base, { ...withoutLayerEnabled(stroke), strokeEnabled: !!doc.effectLayers.find((l) => l.type === "stroke")?.enabled && stroke.enabled !== false && stroke.strokeEnabled !== false });
 
   const fill = getLayerParams<Record<string, unknown>>(doc, "fill");
-  if (fill) Object.assign(base, fill);
+  if (fill) Object.assign(base, withoutLayerEnabled(fill));
 
   base.perCharFillEnabled = doc.text.perCharFillEnabled ?? (fill?.perCharFillEnabled as boolean);
   base.charFillColors = doc.text.charFillColors ?? (fill?.charFillColors as string[] | undefined);
-
-  if (doc.customEngineId) {
-    base.customRenderer = ENGINE_ID_TO_LEGACY[doc.customEngineId];
-    Object.assign(base, doc.engineParams || {});
-  } else {
-    base.customRenderer = undefined;
-  }
 
   base.glowLayers = base.glowLayers.slice(0, 6);
 
@@ -432,7 +408,7 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
   }
 
   // Fill
-  if (fill) {
+  if (fill && fill.enabled !== false) {
     if (fill.type !== undefined) config.fillType = fill.type;
     if (fill.color !== undefined) config.fillColor = fill.color;
     if (fill.gradient?.angle !== undefined) config.fillGradientAngle = fill.gradient.angle;
@@ -445,7 +421,7 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
   }
 
   // Stroke
-  config.strokeEnabled = !!stroke;
+  config.strokeEnabled = !!stroke && (stroke as any).enabled !== false;
   if (stroke) {
     if (stroke.color !== undefined) config.strokeColor = stroke.color;
     if (stroke.width !== undefined) config.strokeWidth = stroke.width * ratio;
@@ -475,7 +451,7 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
   }
 
   // Bevel
-  config.bevelEnabled = !!bevel;
+  config.bevelEnabled = !!bevel && (bevel as any).enabled !== false;
   if (bevel) {
     if (bevel.depth !== undefined) config.bevelDepth = Math.round(bevel.depth * ratio);
     // Support both property names (Studio exports 'highlight'/'shadow', legacy may use 'highlightColor'/'shadowColor')
@@ -497,11 +473,17 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
 
   // Duplicate Stack
   if (effect.stack) {
-    config.stackEnabled = !!effect.stack.count;
+    config.stackEnabled = effect.stack.enabled !== false && !!effect.stack.count;
     if (effect.stack.count !== undefined) config.stackCount = effect.stack.count;
     if (effect.stack.offsetX !== undefined) config.stackOffsetX = effect.stack.offsetX * ratio;
     if (effect.stack.offsetY !== undefined) config.stackOffsetY = effect.stack.offsetY * ratio;
-    if (effect.stack.opacityDecay !== undefined) config.stackOpacityDecay = effect.stack.opacityDecay;
+    if (effect.stack.opacityDecay !== undefined) {
+      // Legacy nested definitions used 0..1 while the canonical runtime
+      // configuration uses the same 0..100 percentage shown in Studio.
+      config.stackOpacityDecay = effect.stack.opacityDecay <= 1
+        ? effect.stack.opacityDecay * 100
+        : effect.stack.opacityDecay;
+    }
     if (effect.stack.color1 !== undefined) config.stackColor1 = effect.stack.color1;
     if (effect.stack.color2 !== undefined) config.stackColor2 = effect.stack.color2;
     if (effect.stack.color3 !== undefined) config.stackColor3 = effect.stack.color3;
@@ -521,8 +503,8 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
     else if (panel.paddingX !== undefined) config.panelPaddingX = panel.paddingX * ratio;
     if (panel.padding?.y !== undefined) config.panelPaddingY = panel.padding.y * ratio;
     else if (panel.paddingY !== undefined) config.panelPaddingY = panel.paddingY * ratio;
-    if (panel.stroke !== undefined) {
-      config.panelStrokeEnabled = !!panel.stroke;
+    if (panel.stroke) {
+      config.panelStrokeEnabled = panel.stroke.enabled !== false;
       if (panel.stroke.color !== undefined) config.panelStrokeColor = panel.stroke.color;
       if (panel.stroke.width !== undefined) config.panelStrokeWidth = panel.stroke.width * ratio;
     }
@@ -544,16 +526,6 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
       return mappedGlow;
     });
   }
-
-  const rawEffect = effect as any;
-  if (rawEffect.customRenderer !== undefined) config.customRenderer = rawEffect.customRenderer;
-  if (rawEffect.inkColor !== undefined) config.inkColor = rawEffect.inkColor;
-  if (rawEffect.bristleDensity !== undefined) config.bristleDensity = rawEffect.bristleDensity;
-  if (rawEffect.bristleSkipRate !== undefined) config.bristleSkipRate = rawEffect.bristleSkipRate;
-  if (rawEffect.dripRate !== undefined) config.dripRate = rawEffect.dripRate;
-  if (rawEffect.dripMaxLength !== undefined) config.dripMaxLength = rawEffect.dripMaxLength;
-  if (rawEffect.grainDensity !== undefined) config.grainDensity = rawEffect.grainDensity;
-  if (rawEffect.skewX !== undefined) config.skewX = rawEffect.skewX;
 
   // Auto-forward unrecognised keys
   const standardKeys = new Set([
@@ -649,14 +621,6 @@ export function _buildConfig(effect: TextEffectDefinition, text: string, fontSiz
     "textPosY",
     "autoFitText",
     "wrapText",
-    "customRenderer",
-    "inkColor",
-    "bristleDensity",
-    "bristleSkipRate",
-    "dripRate",
-    "dripMaxLength",
-    "grainDensity",
-    "skewX",
   ]);
   for (const key of Object.keys(effect)) {
     if (!standardKeys.has(key)) {

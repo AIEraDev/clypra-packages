@@ -116,4 +116,63 @@ describe("canonical effect and template contracts", () => {
   it("hashes equivalent objects deterministically", () => {
     expect(canonicalContentHash({ b: 2, a: 1 })).toBe(canonicalContentHash({ a: 1, b: 2 }));
   });
+
+  it("migrates removed Ink renderer payloads to the standard layer graph", () => {
+    const scene = normalizeTextEffect({
+      ...{
+        text: "CLYPRA",
+        effectName: "Legacy Ink",
+        fontFamily: "Poppins",
+        fontWeight: 700,
+        fontStyle: "normal",
+        fontSize: 80,
+        letterSpacing: 0,
+        lineHeight: 1.2,
+        fillType: "solid",
+        fillColor: "#fff",
+        fillGradientAngle: 90,
+        fillGradientStops: [],
+        strokeEnabled: false,
+        strokeColor: "#fff",
+        strokeWidth: 0,
+        strokePosition: "center",
+        strokeOpacity: 100,
+        strokeLineJoin: "round",
+        glowLayers: [],
+        shadowEnabled: false,
+        shadowColor: "#000",
+        shadowBlur: 0,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0,
+        shadowOpacity: 0,
+        shadowType: "drop",
+        bevelEnabled: false,
+        bevelDepth: 0,
+        bevelHighlight: "#fff",
+        bevelShadow: "#000",
+        bevelDirection: "bottom-right",
+        panelEnabled: false,
+        panelColor: "#000",
+        panelOpacity: 0,
+        panelRadius: 0,
+        panelPaddingX: 0,
+        panelPaddingY: 0,
+        panelStrokeEnabled: false,
+        panelStrokeColor: "#000",
+        panelStrokeWidth: 0,
+        canvasWidth: 800,
+        canvasHeight: 200,
+        textPosX: "center",
+        textPosY: "middle",
+      },
+      customRenderer: "InkBrushEngine",
+      inkColor: "#ff00ff",
+      bristleDensity: 0.8,
+    });
+
+    expect(scene.effectLayers.some((layer) => (layer.type as string) === "customEngine")).toBe(false);
+    expect((scene as unknown as Record<string, unknown>).customEngineId).toBeUndefined();
+    expect((scene.legacyConfig as unknown as Record<string, unknown>).customRenderer).toBeUndefined();
+    expect((scene.legacyConfig as unknown as Record<string, unknown>).inkColor).toBeUndefined();
+  });
 });

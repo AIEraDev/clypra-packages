@@ -128,16 +128,6 @@ export interface TextEffectConfig {
   /** Wrap long lines to composition safe width */
   wrapText?: boolean;
 
-  // Ink Brush specific controls
-  inkColor?: string;
-  bristleDensity?: number;
-  bristleSkipRate?: number;
-  dripRate?: number;
-  dripMaxLength?: number;
-  grainDensity?: number;
-  skewX?: number;
-
-  customRenderer?: string;
 }
 
 export interface Preset {
@@ -169,6 +159,15 @@ export interface EffectIndexItem {
   id: string;
   name: string;
   category: string;
+  schemaVersion?: number;
+  revisionId?: string;
+  contentHash?: string;
+  rendererVersion?: string;
+  revision?: {
+    revisionId?: string;
+    contentHash?: string;
+    rendererVersion?: string;
+  };
   description?: string;
   tags?: string[];
   isPremium?: boolean;
@@ -184,6 +183,7 @@ export interface EffectIndexItem {
 // ── Effect Property Type Definitions ───────────────────────────────────────
 
 export interface EffectFill {
+  enabled?: boolean;
   type: "solid" | "linear" | "radial" | "pattern" | "none";
   color?: string;
   gradient?: {
@@ -196,6 +196,7 @@ export interface EffectFill {
 }
 
 export interface EffectStroke {
+  enabled?: boolean;
   color: string;
   width: number;
   position?: "outside" | "center" | "inside";
@@ -209,6 +210,7 @@ export interface EffectStroke {
 }
 
 export interface EffectShadow {
+  enabled?: boolean;
   type?: "drop" | "inner";
   color: string;
   blur: number;
@@ -219,6 +221,7 @@ export interface EffectShadow {
 }
 
 export interface EffectBevel {
+  enabled?: boolean;
   depth: number;
   highlight?: string; // Current Studio output
   highlightColor?: string; // Legacy format - for backward compatibility
@@ -237,6 +240,7 @@ export interface EffectBevel {
 }
 
 export interface EffectGlow {
+  enabled?: boolean;
   color: string;
   blur: number;
   opacity: number;
@@ -246,6 +250,7 @@ export interface EffectGlow {
 }
 
 export interface EffectPanel {
+  enabled?: boolean;
   color: string;
   opacity: number;
   radius: number;
@@ -253,12 +258,14 @@ export interface EffectPanel {
   paddingX?: number; // Legacy format (flat) - for backward compatibility
   paddingY?: number; // Legacy format (flat) - for backward compatibility
   stroke?: {
+    enabled?: boolean;
     color: string;
     width: number;
   } | null;
 }
 
 export interface EffectStack {
+  enabled?: boolean;
   count: number;
   offsetX: number;
   offsetY: number;

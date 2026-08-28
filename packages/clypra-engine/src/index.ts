@@ -39,9 +39,6 @@ export * from "./contracts.js";
 // Platform capability detection and canvas utilities
 export * from "./platform.js";
 export * from "./canvas-utils.js";
-// Procedural engines
-export { InkBrushEngine } from "./engine/procedural/InkBrushEngine.js";
-
 // Native effect metadata and Canvas2D execution
 export * from "./videoEffects";
 export * from "./bodyEffects";
