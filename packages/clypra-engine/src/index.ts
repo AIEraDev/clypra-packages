@@ -5,7 +5,7 @@
  */
 
 /** Package version */
-export const VERSION = "0.1.0";
+export const VERSION = "1.4.0";
 
 export * from "./types.js";
 export * from "./validation.js";
@@ -55,7 +55,13 @@ export * from "./templates/keyframes.js";
 // Note: AssetKind is already exported from ./smartOverlays/index.js (overlayDocumentSchema).
 // Exclude it here to resolve DTS ambiguity; the v2 AssetKind variant ("lut"|"model") is
 // more extensive but not used in the smart-overlay runtime path.
-export type { AssetHandle, ClipSegment, EffectInstance, TrackDefinition, ProjectManifestV2 } from "./v2/project/types.js";
+export type {
+  AssetHandle,
+  ClipSegment,
+  EffectInstance,
+  TrackDefinition,
+  ProjectManifestV2,
+} from "./v2/project/types.js";
 export { ProjectHelper } from "./v2/project/types.js";
 export * from "./v2/graph/types.js";
 export * from "./v2/graph/NodeRegistry.js";

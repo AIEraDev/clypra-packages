@@ -5,7 +5,11 @@ import type {
   TemplateTextLayer,
   TextTemplate,
 } from "./types";
-import { _buildConfig, sceneToConfig, textEffectConfigToScene } from "./engine/migrate";
+import {
+  _buildConfig,
+  sceneToConfig,
+  textEffectConfigToScene,
+} from "./engine/migrate";
 import {
   SCENE_SCHEMA_VERSION,
   type EffectLayer,
@@ -15,7 +19,7 @@ import { applyTimelineAtTime } from "./engine/animation";
 import { evaluateAnimatable } from "./templates/keyframes";
 
 export const CANONICAL_SCHEMA_VERSION = 2 as const;
-export const CANONICAL_RENDERER_VERSION = "1.3.0" as const;
+export const CANONICAL_RENDERER_VERSION = "1.4.0" as const;
 
 export interface PublishedRevision {
   assetId: string;
@@ -66,7 +70,11 @@ export interface TextTemplateDocumentV2 {
 }
 
 export type RenderTarget = "canvas2d" | "native" | "export";
-export type CapabilityStatus = "exact" | "approximate" | "rasterized" | "unsupported";
+export type CapabilityStatus =
+  | "exact"
+  | "approximate"
+  | "rasterized"
+  | "unsupported";
 
 export interface RenderDiagnostic {
   layerId: string;
@@ -103,7 +111,10 @@ function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(",")}}`;
 }
 
 export function canonicalContentHash(value: unknown): string {
@@ -116,18 +127,27 @@ export function canonicalContentHash(value: unknown): string {
   return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
-function stableLayerId(layer: EffectLayer, index: number, counts: Map<string, number>): string {
+function stableLayerId(
+  layer: EffectLayer,
+  index: number,
+  counts: Map<string, number>,
+): string {
   if (layer.id && !/^layer-[a-z0-9-]+$/i.test(layer.id)) return layer.id;
   const count = (counts.get(layer.type) ?? 0) + 1;
   counts.set(layer.type, count);
   return count === 1 ? layer.type : `${layer.type}-${count}`;
 }
 
-export function canonicalizeSceneDocument(input: SceneDocument): SceneDocumentV2 {
+export function canonicalizeSceneDocument(
+  input: SceneDocument,
+): SceneDocumentV2 {
   const doc = clone(input);
   // Old scene payloads may contain custom-engine metadata. It is read only and
   // must never survive into the canonical document or renderer diagnostics.
-  const legacyDoc = doc as SceneDocument & { customEngineId?: unknown; engineParams?: unknown };
+  const legacyDoc = doc as SceneDocument & {
+    customEngineId?: unknown;
+    engineParams?: unknown;
+  };
   delete legacyDoc.customEngineId;
   delete legacyDoc.engineParams;
   if (doc.legacyConfig) {
@@ -141,26 +161,30 @@ export function canonicalizeSceneDocument(input: SceneDocument): SceneDocumentV2
       "dripMaxLength",
       "grainDensity",
       "skewX",
-    ]) delete legacyConfig[key];
+    ])
+      delete legacyConfig[key];
   }
   const idMap = new Map<string, string>();
   const counts = new Map<string, number>();
   const usedIds = new Set<string>();
-  const effectLayers = doc.effectLayers.filter((layer) => (layer.type as string) !== "customEngine").map((layer) => {
-    let id = stableLayerId(layer, 0, counts);
-    let suffix = 2;
-    while (usedIds.has(id)) id = `${id}-${suffix++}`;
-    usedIds.add(id);
-    const effectiveEnabled = layer.enabled !== false && layer.params.enabled !== false;
-    idMap.set(layer.id, id);
-    return {
-      ...layer,
-      id,
-      enabled: effectiveEnabled,
-      opacity: Number.isFinite(layer.opacity) ? layer.opacity : 1,
-      params: { ...layer.params, enabled: effectiveEnabled },
-    };
-  });
+  const effectLayers = doc.effectLayers
+    .filter((layer) => (layer.type as string) !== "customEngine")
+    .map((layer) => {
+      let id = stableLayerId(layer, 0, counts);
+      let suffix = 2;
+      while (usedIds.has(id)) id = `${id}-${suffix++}`;
+      usedIds.add(id);
+      const effectiveEnabled =
+        layer.enabled !== false && layer.params.enabled !== false;
+      idMap.set(layer.id, id);
+      return {
+        ...layer,
+        id,
+        enabled: effectiveEnabled,
+        opacity: Number.isFinite(layer.opacity) ? layer.opacity : 1,
+        params: { ...layer.params, enabled: effectiveEnabled },
+      };
+    });
   const timeline = {
     ...doc.timeline,
     tracks: doc.timeline.tracks.map((track) => ({
@@ -176,16 +200,23 @@ export function canonicalizeSceneDocument(input: SceneDocument): SceneDocumentV2
   };
 }
 
-function effectDefinitionToConfig(input: EffectFullDefinition): TextEffectConfig & { width: number; height: number } {
-  const raw = input as EffectFullDefinition & { text?: string; fontSize?: number; canvasWidth?: number; canvasHeight?: number };
+function effectDefinitionToConfig(
+  input: EffectFullDefinition,
+): TextEffectConfig & { width: number; height: number } {
+  const raw = input as EffectFullDefinition & {
+    text?: string;
+    fontSize?: number;
+    canvasWidth?: number;
+    canvasHeight?: number;
+  };
   const fontSize = Number(raw.fontSize ?? 100);
   return {
     ..._buildConfig(
-    input,
-    raw.text ?? "CLYPRA",
-    fontSize,
-    Number(raw.canvasWidth ?? 800),
-    Number(raw.canvasHeight ?? 200),
+      input,
+      raw.text ?? "CLYPRA",
+      fontSize,
+      Number(raw.canvasWidth ?? 800),
+      Number(raw.canvasHeight ?? 200),
     ),
     effectName: input.name,
     textPosX: "center",
@@ -197,7 +228,8 @@ export function normalizeTextEffect(
   input: unknown,
   metadata?: Partial<PublishedRevision>,
 ): SceneDocumentV2 {
-  if (!input || typeof input !== "object") throw new Error("Invalid text effect document");
+  if (!input || typeof input !== "object")
+    throw new Error("Invalid text effect document");
   const raw = input as Record<string, any>;
   const scene = Array.isArray(raw.effectLayers)
     ? canonicalizeSceneDocument(raw as SceneDocument)
@@ -205,7 +237,7 @@ export function normalizeTextEffect(
         textEffectConfigToScene(
           raw.font && Array.isArray(raw.fills)
             ? effectDefinitionToConfig(raw as EffectFullDefinition)
-            : raw as TextEffectConfig,
+            : (raw as TextEffectConfig),
         ),
       );
   const content = { ...scene, revision: undefined };
@@ -222,13 +254,23 @@ export function normalizeTextEffect(
   return scene;
 }
 
-function normalizeTemplateLayer(layer: TemplateLayer, index: number): TemplateLayerV2 {
+function normalizeTemplateLayer(
+  layer: TemplateLayer,
+  index: number,
+): TemplateLayerV2 {
   const normalized = clone(layer) as TemplateLayerV2;
   normalized.id = normalized.id || `${normalized.kind}-${index + 1}`;
   if (normalized.kind === "text") {
-    const text = normalized as TemplateTextLayer & { styleRef?: TemplateStyleRef; styleDefinition?: unknown; styleId?: string; styleVersion?: number };
+    const text = normalized as TemplateTextLayer & {
+      styleRef?: TemplateStyleRef;
+      styleDefinition?: unknown;
+      styleId?: string;
+      styleVersion?: number;
+    };
     if (!text.styleRef && text.styleDefinition) {
-      const snapshot = normalizeTextEffect(text.styleDefinition, { assetId: text.styleId ?? "legacy-effect" });
+      const snapshot = normalizeTextEffect(text.styleDefinition, {
+        assetId: text.styleId ?? "legacy-effect",
+      });
       text.styleRef = {
         effectId: text.styleId ?? snapshot.effectName,
         revisionId: String(text.styleVersion ?? "legacy"),
@@ -295,18 +337,26 @@ export function normalizeTextTemplate(
   input: unknown,
   metadata?: Partial<PublishedRevision>,
 ): TextTemplateDocumentV2 {
-  if (!input || typeof input !== "object") throw new Error("Invalid text template document");
+  if (!input || typeof input !== "object")
+    throw new Error("Invalid text template document");
   const raw = input as Record<string, any>;
   const sourceLayers = Array.isArray(raw.layers)
     ? raw.layers
     : Array.isArray(raw.elements)
-      ? raw.elements.map(normalizeTemplateElement)
-      : [];
+    ? raw.elements.map(normalizeTemplateElement)
+    : [];
   const layers = sourceLayers.map(normalizeTemplateLayer);
   const dependencies = layers
     .map((layer) => (layer.kind === "text" ? layer.styleRef : undefined))
     .filter((ref): ref is TemplateStyleRef => !!ref)
-    .filter((ref, index, all) => all.findIndex((other) => other.effectId === ref.effectId && other.revisionId === ref.revisionId) === index);
+    .filter(
+      (ref, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.effectId === ref.effectId &&
+            other.revisionId === ref.revisionId,
+        ) === index,
+    );
   const document: TextTemplateDocumentV2 = {
     schemaVersion: CANONICAL_SCHEMA_VERSION,
     id: String(raw.id),
@@ -326,7 +376,11 @@ export function normalizeTextTemplate(
     creatorName: raw.creatorName,
     creatorLink: raw.creatorLink,
   };
-  if (!document.id || !Number.isFinite(document.duration) || document.duration <= 0) {
+  if (
+    !document.id ||
+    !Number.isFinite(document.duration) ||
+    document.duration <= 0
+  ) {
     throw new Error("Text template must have a valid id and positive duration");
   }
   if (metadata?.assetId) {
@@ -334,7 +388,9 @@ export function normalizeTextTemplate(
       assetId: metadata.assetId,
       revisionId: metadata.revisionId ?? "draft",
       schemaVersion: CANONICAL_SCHEMA_VERSION,
-      contentHash: metadata.contentHash ?? canonicalContentHash({ ...document, revision: undefined }),
+      contentHash:
+        metadata.contentHash ??
+        canonicalContentHash({ ...document, revision: undefined }),
       rendererVersion: metadata.rendererVersion ?? CANONICAL_RENDERER_VERSION,
       createdAt: metadata.createdAt ?? new Date().toISOString(),
     };
@@ -344,36 +400,58 @@ export function normalizeTextTemplate(
 
 function activeEffectDiagnostics(scene: SceneDocumentV2): RenderDiagnostic[] {
   const config = sceneToConfig(scene);
-  const glowLayers = scene.effectLayers.filter((layer) => layer.type === "glow");
+  const glowLayers = scene.effectLayers.filter(
+    (layer) => layer.type === "glow",
+  );
   return scene.effectLayers.map((layer) => {
     const glowIndex = glowLayers.indexOf(layer);
     const semanticEnabled = (() => {
       switch (layer.type) {
-        case "panel": return config.panelEnabled;
-        case "glow": return config.glowLayers[glowIndex]?.enabled === true;
-        case "shadow": return config.shadowEnabled;
-        case "extrusion": return config.bevelEnabled;
-        case "duplicateStack": return config.stackEnabled;
-        case "stroke": return config.strokeEnabled;
-        case "fill": return config.fillType !== "none";
-        default: return true;
+        case "panel":
+          return config.panelEnabled;
+        case "glow":
+          return config.glowLayers[glowIndex]?.enabled === true;
+        case "shadow":
+          return config.shadowEnabled;
+        case "extrusion":
+          return config.bevelEnabled;
+        case "duplicateStack":
+          return config.stackEnabled;
+        case "stroke":
+          return config.strokeEnabled;
+        case "fill":
+          return config.fillType !== "none";
+        default:
+          return true;
       }
     })();
-    const contributes = layer.enabled === true && layer.opacity > 0 && layer.params.enabled !== false && semanticEnabled === true;
+    const contributes =
+      layer.enabled === true &&
+      layer.opacity > 0 &&
+      layer.params.enabled !== false &&
+      semanticEnabled === true;
     return {
-    layerId: layer.id,
-    layerType: layer.type,
-    enabled: contributes,
-    contribution: contributes ? "active" : "disabled",
-    reason: contributes ? `${layer.name} is enabled` : `${layer.name} is explicitly disabled`,
+      layerId: layer.id,
+      layerType: layer.type,
+      enabled: contributes,
+      contribution: contributes ? "active" : "disabled",
+      reason: contributes
+        ? `${layer.name} is enabled`
+        : `${layer.name} is explicitly disabled`,
     };
   });
 }
 
-function capabilities(target: RenderTarget, unsupportedFeatures: string[] = []): CapabilityReport {
-  const status: CapabilityStatus = unsupportedFeatures.length > 0
-    ? target === "native" ? "rasterized" : "unsupported"
-    : "exact";
+function capabilities(
+  target: RenderTarget,
+  unsupportedFeatures: string[] = [],
+): CapabilityReport {
+  const status: CapabilityStatus =
+    unsupportedFeatures.length > 0
+      ? target === "native"
+        ? "rasterized"
+        : "unsupported"
+      : "exact";
   return { target, status, unsupportedFeatures, approximations: [] };
 }
 
@@ -409,13 +487,17 @@ export function evaluateTextTemplate(
 ): RenderPlan {
   const template = normalizeTextTemplate(document);
   const diagnostics: RenderDiagnostic[] = template.layers.map((layer) => {
-    const enabled = evaluateAnimatable((layer as any).opacity ?? 1, time, template.duration) > 0;
+    const enabled =
+      evaluateAnimatable((layer as any).opacity ?? 1, time, template.duration) >
+      0;
     return {
       layerId: layer.id,
       layerType: layer.kind,
       enabled,
       contribution: enabled ? "active" : "disabled",
-      reason: enabled ? `${layer.kind} layer contributes at ${time.toFixed(3)}s` : "Layer opacity is zero",
+      reason: enabled
+        ? `${layer.kind} layer contributes at ${time.toFixed(3)}s`
+        : "Layer opacity is zero",
     };
   });
   void overrides;
@@ -435,6 +517,9 @@ export function evaluateTextTemplate(
   };
 }
 
-export function getRenderCapabilities(plan: RenderPlan, target: RenderTarget): CapabilityReport {
+export function getRenderCapabilities(
+  plan: RenderPlan,
+  target: RenderTarget,
+): CapabilityReport {
   return plan.capabilities[target];
 }
