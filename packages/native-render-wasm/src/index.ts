@@ -18,6 +18,10 @@ import init, {
 export const DEFAULT_CLYPRA_WASM_URL =
   "https://clypra-worker-api.abdulkabirmusa.com/media/wasm/clypra_render_wasm_bg.wasm";
 
+// The currently deployed WASM artifact validates v1. The Studio bridge can
+// negotiate v2 as soon as the newer artifact is deployed.
+export const NATIVE_RENDER_CONTRACT_VERSION = 1;
+
 let configuredWasmUrl = DEFAULT_CLYPRA_WASM_URL;
 
 /**
@@ -197,7 +201,7 @@ export async function probeNativeRenderer(
     };
     return {
       protocolVersion: 1,
-      contractVersion: 1,
+      contractVersion: NATIVE_RENDER_CONTRACT_VERSION,
       coreVersion: "wasm-0.1.0",
       renderGraphVersion: 1,
       colorPolicyVersion: 1,
@@ -213,7 +217,7 @@ export async function probeNativeRenderer(
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     return {
       protocolVersion: 1,
-      contractVersion: 1,
+      contractVersion: NATIVE_RENDER_CONTRACT_VERSION,
       coreVersion: "wasm-0.1.0",
       renderGraphVersion: 1,
       colorPolicyVersion: 1,
