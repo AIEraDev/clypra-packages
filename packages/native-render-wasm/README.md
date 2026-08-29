@@ -39,7 +39,7 @@ Render a multi-layer project snapshot to an image `Blob`:
 import { renderFrame, type NativeLabFrameRequest } from "@clypra-studio/native-render-wasm";
 
 const request: NativeLabFrameRequest = {
-  contractVersion: 1,
+  contractVersion: 2,
   requestId: "frame-001",
   frameTime: {
     frameIndex: 0,
@@ -87,7 +87,7 @@ console.log("Generated image blob:", result.image, result.contentType); // Blob 
 ### 3. Custom WASM Endpoint (Optional)
 
 By default, the renderer loads the official precompiled binary from Cloudflare R2:
-`https://clypra-worker-api.abdulkabirmusa.com/media/wasm/clypra_render_wasm_bg.wasm`
+`https://clypra-worker-api.abdulkabirmusa.com/media/wasm/clypra_render_wasm_v2_bg.wasm`
 
 To use a custom host or a locally hosted development build:
 
