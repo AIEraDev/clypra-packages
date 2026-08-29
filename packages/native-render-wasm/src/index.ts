@@ -147,6 +147,11 @@ export class ClypraWasmError extends Error {
 let wasmInitialised = false;
 let renderer: WasmRenderer | null = null;
 let initPromise: Promise<WasmRenderer> | null = null;
+// The WASM renderer owns a long-lived wgpu compositor. Its render method is
+// intentionally mutable so the compositor can reuse pipelines and uniform
+// storage between frames. Keep every caller (Studio, export, thumbnails) on a
+// single queue so a second JS call can never overlap a mutable WASM borrow.
+let renderQueue: Promise<void> = Promise.resolve();
 
 async function getRenderer(): Promise<WasmRenderer> {
   if (renderer) return renderer;
@@ -240,31 +245,36 @@ export async function renderFrame(
   request: NativeLabFrameRequest,
   signal?: AbortSignal,
 ): Promise<NativeLabFrameResult> {
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  const r = await getRenderer();
-  try {
-    const pngBytes = await r.render_frame(JSON.stringify(request));
-    return {
-      image: new Blob([pngBytes], { type: "image/png" }),
-      contentType: "image/png",
-      requestId: request.requestId,
-      frameIndex: request.frameTime.frameIndex,
-      metrics: {
-        decodeTimeUs: null,
-        composeTimeUs: null,
-        readbackTimeUs: null,
-        totalTimeUs: null,
-        cacheHit: null,
-      },
-    };
-  } catch (err) {
-    throw new ClypraWasmError(
-      `Failed to render frame '${request.requestId}' at index ${request.frameTime.frameIndex}: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-      err,
-    );
-  }
+  const run = renderQueue.then(async () => {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const r = await getRenderer();
+    try {
+      const pngBytes = await r.render_frame(JSON.stringify(request));
+      return {
+        image: new Blob([pngBytes], { type: "image/png" }),
+        contentType: "image/png",
+        requestId: request.requestId,
+        frameIndex: request.frameTime.frameIndex,
+        metrics: {
+          decodeTimeUs: null,
+          composeTimeUs: null,
+          readbackTimeUs: null,
+          totalTimeUs: null,
+          cacheHit: null,
+        },
+      } satisfies NativeLabFrameResult;
+    } catch (err) {
+      throw new ClypraWasmError(
+        `Failed to render frame '${request.requestId}' at index ${request.frameTime.frameIndex}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        err,
+      );
+    }
+  });
+  // A failed frame must not poison the queue for all future frames.
+  renderQueue = run.then(() => undefined, () => undefined);
+  return run;
 }
 
 /**
