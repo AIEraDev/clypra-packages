@@ -289,6 +289,14 @@ export interface FrameNode extends SceneNodeBase {
 export interface PrimitiveTextNode extends SceneNodeBase {
   type: "text";
   text: string;
+  /** Optional pinned Clypra text-effect dependency used by text templates. */
+  textEffectRef?: {
+    effectId: string;
+    revisionId: string;
+    contentHash: string;
+    parameterOverrides?: Record<string, unknown>;
+    snapshot?: unknown;
+  };
 }
 
 export type ShapeKind =

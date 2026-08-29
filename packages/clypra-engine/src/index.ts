@@ -50,6 +50,7 @@ export * from "./transitions";
 export * from "./templates/TemplateRenderer.js";
 export * from "./templates/presets.js";
 export * from "./templates/keyframes.js";
+export * from "./textTemplates/index.js";
 
 // Pipeline V2 (Media Processing Graph & Render Planner)
 // Note: AssetKind is already exported from ./smartOverlays/index.js (overlayDocumentSchema).
