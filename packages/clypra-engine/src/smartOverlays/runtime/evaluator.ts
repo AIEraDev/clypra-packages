@@ -222,7 +222,10 @@ export function evaluateOverlayDocument(
       style,
       content,
       geometry,
-      children: evaluatedChildren
+      children: evaluatedChildren,
+      metadata: "textEffectRef" in responsiveNode
+        ? { textEffectRef: (responsiveNode as any).textEffectRef }
+        : undefined
     };
 
     nodeMap[evaluatedNode.id] = evaluatedNode;
