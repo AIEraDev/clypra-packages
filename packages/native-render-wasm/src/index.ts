@@ -16,11 +16,10 @@ import init, {
 } from "./generated/clypra_render_wasm.js";
 
 export const DEFAULT_CLYPRA_WASM_URL =
-  "https://clypra-worker-api.abdulkabirmusa.com/media/wasm/clypra_render_wasm_bg.wasm";
+  "https://clypra-worker-api.abdulkabirmusa.com/media/wasm/clypra_render_wasm_v2_bg.wasm";
 
-// The currently deployed WASM artifact validates v1. The Studio bridge can
-// negotiate v2 as soon as the newer artifact is deployed.
-export const NATIVE_RENDER_CONTRACT_VERSION = 1;
+// The v2 WASM artifact validates the native-core v2 frame contract.
+export const NATIVE_RENDER_CONTRACT_VERSION = 2;
 
 let configuredWasmUrl = DEFAULT_CLYPRA_WASM_URL;
 
