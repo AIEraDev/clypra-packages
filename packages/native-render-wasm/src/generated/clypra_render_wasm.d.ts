@@ -20,6 +20,11 @@ export class WasmRenderer {
      */
     adapter_info(): string;
     /**
+     * Register a TrueType or OpenType font for text rendering.
+     * Returns the 64-bit content hash of the registered font.
+     */
+    register_font(font_id: string, font_bytes: Uint8Array): bigint;
+    /**
      * Render a single frame.
      *
      * `request_json` — a JSON-serialised `FrameRequest` (same contract as
@@ -28,6 +33,39 @@ export class WasmRenderer {
      * Returns raw PNG bytes as a `Uint8Array`.
      */
     render_frame(request_json: string): Promise<Uint8Array>;
+    /**
+     * Render a text effect SDF composite for the Effect Lab live authoring UI.
+     *
+     * `text_effect_request_json` — a JSON object with fields:
+     *   - `text: string`
+     *   - `fontId: string` (must match a font already registered with `register_font`)
+     *   - `fontSize: number`
+     *   - `effectDefinition: EffectDefinition` — the full server-fetched definition
+     *   - `parameterOverrides: Record<string, TextParamValue>` — untrusted overrides
+     *   - `outputWidth: number`, `outputHeight: number`
+     *
+     * Returns a JSON response: `{ "status": "ok", "png": "<base64>" }` or
+     * `{ "status": "error", "message": "..." }`.
+     *
+     * The effect definition is validated and all parameter overrides are sanitized
+     * before any GPU work begins.
+     *
+     * ```ts
+     * import init, { create_renderer } from "@clypra/render-wasm";
+     * await init();
+     * const renderer = await create_renderer();
+     * const result = JSON.parse(await renderer.render_text_effect(JSON.stringify({
+     *   text: "Clypra",
+     *   fontId: "inter-bold",
+     *   fontSize: 96,
+     *   effectDefinition: { ... },
+     *   parameterOverrides: { radius: 0.3, color: [1, 0.8, 0.2, 1] },
+     *   outputWidth: 800,
+     *   outputHeight: 200,
+     * })));
+     * ```
+     */
+    render_text_effect(text_effect_request_json: string): string;
 }
 
 /**
@@ -52,12 +90,12 @@ export interface InitOutput {
     readonly __wbg_wasmrenderer_free: (a: number, b: number) => void;
     readonly create_renderer: () => any;
     readonly wasmrenderer_adapter_info: (a: number) => [number, number];
+    readonly wasmrenderer_register_font: (a: number, b: number, c: number, d: number, e: number) => [bigint, number, number];
     readonly wasmrenderer_render_frame: (a: number, b: number, c: number) => any;
-    readonly wasm_bindgen__convert__closures_____invoke__h43e9943cf2c4f3e9: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen__convert__closures_____invoke__h6890542ec23ad306: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h28ca0ccefdd47645: (a: number, b: number, c: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h4a9ffdf99e28b405: (a: number, b: number, c: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__hf578ab18b69ee5d0: (a: number, b: number) => number;
+    readonly wasmrenderer_render_text_effect: (a: number, b: number, c: number) => [number, number];
+    readonly wasm_bindgen__convert__closures_____invoke__hf6aba3c8feb6b782: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen__convert__closures_____invoke__h01c97e93bd9b480d: (a: number, b: number, c: any, d: any) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__hda10ed9d0a9960d8: (a: number, b: number, c: any) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
