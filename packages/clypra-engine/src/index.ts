@@ -86,3 +86,4 @@ export * from "./media/mediaLayout.js";
 export * from "./media/conform.js";
 export * from "./media/sourceCapture.js";
 export * from "./smartOverlays/index.js";
+export * from "./smartOverlays/runtime/canvasRenderer.js";
