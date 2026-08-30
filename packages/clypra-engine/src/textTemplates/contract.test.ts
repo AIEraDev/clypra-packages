@@ -201,4 +201,35 @@ describe("canonical text templates", () => {
     expect(subtitleLayer?.x).toBe(120);
     expect(subtitleLayer?.y).toBe(285);
   });
+
+  it("measures auto-sized text instead of using a fixed safe box", () => {
+    const artifact = normalizeTextTemplateArtifact({
+      id: "auto-size",
+      label: "Auto Size",
+      duration: 2,
+      nodes: [{
+        id: "headline",
+        type: "text",
+        x: 100,
+        y: 200,
+        width: "auto",
+        height: "auto",
+        text: "Measured headline",
+        style: { fontFamily: "Poppins", fontSize: 48, fontWeight: 700, textColor: "#fff" },
+      }],
+    });
+
+    const compiled = compileTextTemplate(artifact, {
+      target: "studio",
+      time: 0,
+      runtime: {
+        measureText: () => ({ width: 312 }),
+      },
+    });
+    const layer = compiled.layers[0];
+    expect(layer?.width).toBe(312);
+    expect(layer?.height).toBeCloseTo(57.6);
+    expect(layer?.width).not.toBe(400);
+    expect(layer?.height).not.toBe(100);
+  });
 });

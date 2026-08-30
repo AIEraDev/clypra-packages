@@ -4,6 +4,7 @@ import type {
   TextStyleSpan,
   TextSplitAnimator,
   TemplateVariableDefinition,
+  TemplateKeyframe,
 } from "../types.js";
 
 export const TEXT_TEMPLATE_KIND = "text-template" as const;
@@ -158,6 +159,13 @@ export interface TemplateBackgroundPanel {
   borderWidth?: number;
 }
 
+export type TemplatePropertyKeyframes = Record<string, { keyframes: TemplateKeyframe<unknown>[] }>;
+
+export type TemplateNodeAnimation = LayerAnimation & {
+  /** Keyframes for geometry/style properties authored by Studio. */
+  propertyKeyframes?: TemplatePropertyKeyframes;
+};
+
 export interface TemplateTextNode {
   id: string;
   name?: string;
@@ -170,7 +178,7 @@ export interface TemplateTextNode {
   visible?: boolean;
   style: TemplateTextNodeStyle;
   backgroundPanel?: TemplateBackgroundPanel;
-  animation?: LayerAnimation;
+  animation?: TemplateNodeAnimation;
   spans?: TextStyleSpan[];
   perCharFillEnabled?: boolean;
   charFillColors?: string[];
@@ -203,7 +211,7 @@ export interface TemplateShapeNode {
   height: number;
   visible?: boolean;
   style: TemplateShapeNodeStyle;
-  animation?: LayerAnimation;
+  animation?: TemplateNodeAnimation;
   anchor?: ResponsiveAnchorConfig;
   parentId?: string;
 }
@@ -223,7 +231,7 @@ export interface TemplateImageNode {
   style?: {
     opacity?: number;
   };
-  animation?: LayerAnimation;
+  animation?: TemplateNodeAnimation;
   anchor?: ResponsiveAnchorConfig;
   parentId?: string;
 }
@@ -260,7 +268,7 @@ export interface TemplateContainerNode {
   height: number | "auto";
   visible?: boolean;
   style?: TemplateContainerNodeStyle;
-  animation?: LayerAnimation;
+  animation?: TemplateNodeAnimation;
   anchor?: ResponsiveAnchorConfig;
   parentId?: string;
 }
@@ -317,7 +325,10 @@ export interface TemplateRenderContext {
   target: TemplateRenderTarget;
   controlValues?: Record<string, unknown>;
   clipDuration?: number;
-  runtime?: Record<string, unknown>;
+  runtime?: Record<string, unknown> & {
+    /** Host-provided font measurement used for deterministic auto layout. */
+    measureText?: (text: string, style: TemplateTextNodeStyle) => { width: number; height?: number };
+  };
 }
 
 export interface CompiledTemplateRenderLayer {
