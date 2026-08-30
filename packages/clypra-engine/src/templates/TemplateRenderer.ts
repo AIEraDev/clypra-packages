@@ -1,10 +1,26 @@
-import { TextTemplate, TemplateLayer, TemplateTextLayer, TemplateShapeLayer, TemplateImageLayer, TemplateContainerLayer } from "../types";
+import {
+  TextTemplate,
+  TemplateLayer,
+  TemplateTextLayer,
+  TemplateShapeLayer,
+  TemplateImageLayer,
+  TemplateContainerLayer,
+} from "../types";
 import { evaluateAnimatable, cubicBezier } from "./keyframes";
 import { wrapTextToWidth } from "../engine/textLayout";
 import { resolveFontFamilyName } from "../engine/migrate";
-import { evaluateTextTemplate, type RenderPlan, normalizeTextTemplate } from "../contracts";
+import {
+  evaluateTextTemplate,
+  type RenderPlan,
+  normalizeTextTemplate,
+} from "../contracts";
 import { evaluateScene } from "../engine/evaluate";
-import { splitTextContent, evaluateSplitTextTransforms, getSpanForCharIndex, SplitUnit } from "./textSplitter";
+import {
+  splitTextContent,
+  evaluateSplitTextTransforms,
+  getSpanForCharIndex,
+  SplitUnit,
+} from "./textSplitter";
 import { resolveAnchorPosition } from "./responsiveLayout";
 
 export { cubicBezier };
@@ -24,8 +40,14 @@ export class TemplateRenderer {
   private editedValues: Map<string, Partial<TemplateLayer>>;
   private imageCache = new Map<string, any>(); // cache loaded images to prevent flickering
   private currentTime: number = 0; // Track current time for keyframe evaluation
-  private lastLayerLayouts = new Map<string, { x: number; y: number; width: number; height: number }>();
-  private computedFlexLayouts = new Map<string, { x: number; y: number; width: number; height: number }>();
+  private lastLayerLayouts = new Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >();
+  private computedFlexLayouts = new Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >();
 
   constructor(template: TextTemplate) {
     this.template = normalizeTextTemplate(template) as TextTemplate;
@@ -39,10 +61,15 @@ export class TemplateRenderer {
 
   updateLayer(layerId: string, changes: Partial<TemplateLayer>): void {
     const existing = this.editedValues.get(layerId) ?? {};
-    this.editedValues.set(layerId, { ...existing, ...changes } as Partial<TemplateLayer>);
+    this.editedValues.set(layerId, {
+      ...existing,
+      ...changes,
+    } as Partial<TemplateLayer>);
   }
 
-  getLayerLayout(layerId: string): { x: number; y: number; width: number; height: number } | null {
+  getLayerLayout(
+    layerId: string,
+  ): { x: number; y: number; width: number; height: number } | null {
     return this.lastLayerLayouts.get(layerId) ?? null;
   }
 
@@ -59,10 +86,17 @@ export class TemplateRenderer {
   }
 
   // For text layers: evaluate width or height, returning the raw value which may be "auto".
-  private evaluateTextDimension(layer: TemplateTextLayer, prop: "width" | "height"): number | "auto" {
+  private evaluateTextDimension(
+    layer: TemplateTextLayer,
+    prop: "width" | "height",
+  ): number | "auto" {
     const value = layer[prop];
     if (value === "auto") return "auto";
-    return evaluateAnimatable(value as any, this.currentTime, this.template.duration);
+    return evaluateAnimatable(
+      value as any,
+      this.currentTime,
+      this.template.duration,
+    );
   }
 
   // Compute animation parameters (transforms, opacity, scale, typewriter, etc.)
@@ -83,7 +117,11 @@ export class TemplateRenderer {
     return { opacity: 1, x: 0, y: 0, scale: 1, blur: 0, typewriterProgress: 1 };
   }
 
-  private applyPreset(preset: string, t: number, direction: "in" | "out"): AnimationState {
+  private applyPreset(
+    preset: string,
+    t: number,
+    direction: "in" | "out",
+  ): AnimationState {
     // Material Standard Ease: cubicBezier(0.4, 0, 0.2, 1)
     const ease = cubicBezier(0.4, 0, 0.2, 1)(t);
     const p = direction === "in" ? ease : 1 - ease;
@@ -172,14 +210,27 @@ export class TemplateRenderer {
       const override = (this.template as any).variableValues?.[trimmed];
       if (override !== undefined) return String(override);
       const def = vars[trimmed];
-      if (def && def.defaultValue !== undefined) return String(def.defaultValue);
+      if (def && def.defaultValue !== undefined)
+        return String(def.defaultValue);
       return `{{${trimmed}}}`;
     });
   }
 
-  drawFrame(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, time: number, fitToContentOrOpts: boolean | { fitToContent?: boolean; skipClear?: boolean } = false): void {
-    const fitToContent = typeof fitToContentOrOpts === "boolean" ? fitToContentOrOpts : !!fitToContentOrOpts?.fitToContent;
-    const skipClear = typeof fitToContentOrOpts === "object" ? !!fitToContentOrOpts?.skipClear : false;
+  drawFrame(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    time: number,
+    fitToContentOrOpts:
+      | boolean
+      | { fitToContent?: boolean; skipClear?: boolean } = false,
+  ): void {
+    const fitToContent =
+      typeof fitToContentOrOpts === "boolean"
+        ? fitToContentOrOpts
+        : !!fitToContentOrOpts?.fitToContent;
+    const skipClear =
+      typeof fitToContentOrOpts === "object"
+        ? !!fitToContentOrOpts?.skipClear
+        : false;
 
     this.currentTime = time; // Track current time for keyframe evaluation
 
@@ -193,12 +244,21 @@ export class TemplateRenderer {
       const bounds = this.getContentBounds();
       if (bounds && bounds.width > 0 && bounds.height > 0) {
         if (!skipClear) {
-          ctx.clearRect(0, 0, this.template.canvasWidth, this.template.canvasHeight);
+          ctx.clearRect(
+            0,
+            0,
+            this.template.canvasWidth,
+            this.template.canvasHeight,
+          );
         }
         ctx.save();
 
         const padding = 0.85; // 15% margin
-        const scale = Math.min(this.template.canvasWidth / bounds.width, this.template.canvasHeight / bounds.height) * padding;
+        const scale =
+          Math.min(
+            this.template.canvasWidth / bounds.width,
+            this.template.canvasHeight / bounds.height,
+          ) * padding;
 
         // Limit maximum scale to 3.0 to prevent pixelation of very small text
         const finalScale = Math.min(3.0, scale);
@@ -206,7 +266,10 @@ export class TemplateRenderer {
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
 
-        ctx.translate(this.template.canvasWidth / 2, this.template.canvasHeight / 2);
+        ctx.translate(
+          this.template.canvasWidth / 2,
+          this.template.canvasHeight / 2,
+        );
         ctx.scale(finalScale, finalScale);
         ctx.translate(-cx, -cy);
 
@@ -219,12 +282,22 @@ export class TemplateRenderer {
 
     // Default normal draw
     if (!skipClear) {
-      ctx.clearRect(0, 0, this.template.canvasWidth, this.template.canvasHeight);
+      ctx.clearRect(
+        0,
+        0,
+        this.template.canvasWidth,
+        this.template.canvasHeight,
+      );
     }
     this.drawLayers(ctx, time);
   }
 
-  getContentBounds(): { x: number; y: number; width: number; height: number } | null {
+  getContentBounds(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null {
     if (this.lastLayerLayouts.size === 0) return null;
     let minX = Infinity;
     let minY = Infinity;
@@ -275,7 +348,9 @@ export class TemplateRenderer {
     if (!this.template || !Array.isArray(this.template.layers)) return;
 
     const layers = this.template.layers.map((l) => this.resolveLayer(l));
-    const containers = layers.filter((l) => l.kind === "container") as TemplateContainerLayer[];
+    const containers = layers.filter(
+      (l) => l.kind === "container",
+    ) as TemplateContainerLayer[];
     if (containers.length === 0) return;
 
     // Measure intrinsic bounds for non-container layers
@@ -286,15 +361,62 @@ export class TemplateRenderer {
         const textLayer = layer as TemplateTextLayer;
         const rawW = this.evaluateTextDimension(textLayer, "width");
         const rawH = this.evaluateTextDimension(textLayer, "height");
-        const fontSize = Number(evaluateAnimatable(textLayer.fontSize, this.currentTime, this.template.duration)) || 48;
-        const fontWeight = evaluateAnimatable(textLayer.fontWeight, this.currentTime, this.template.duration) || 400;
+        const fontSize =
+          Number(
+            evaluateAnimatable(
+              textLayer.fontSize,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 48;
+        const fontWeight =
+          evaluateAnimatable(
+            textLayer.fontWeight,
+            this.currentTime,
+            this.template.duration,
+          ) || 400;
         const rawFontFamily = textLayer.fontFamily || "Space Grotesk";
         const fontFamily = resolveFontFamilyName(rawFontFamily);
-        const legacyPad = Number(evaluateAnimatable(textLayer.padding ?? 0, this.currentTime, this.template.duration)) || 0;
-        const padL = Number(evaluateAnimatable(textLayer.paddingLeft ?? legacyPad, this.currentTime, this.template.duration)) || 0;
-        const padR = Number(evaluateAnimatable(textLayer.paddingRight ?? legacyPad, this.currentTime, this.template.duration)) || 0;
-        const padT = Number(evaluateAnimatable(textLayer.paddingTop ?? legacyPad, this.currentTime, this.template.duration)) || 0;
-        const padB = Number(evaluateAnimatable(textLayer.paddingBottom ?? legacyPad, this.currentTime, this.template.duration)) || 0;
+        const legacyPad =
+          Number(
+            evaluateAnimatable(
+              textLayer.padding ?? 0,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 0;
+        const padL =
+          Number(
+            evaluateAnimatable(
+              textLayer.paddingLeft ?? legacyPad,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 0;
+        const padR =
+          Number(
+            evaluateAnimatable(
+              textLayer.paddingRight ?? legacyPad,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 0;
+        const padT =
+          Number(
+            evaluateAnimatable(
+              textLayer.paddingTop ?? legacyPad,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 0;
+        const padB =
+          Number(
+            evaluateAnimatable(
+              textLayer.paddingBottom ?? legacyPad,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 0;
         const text = this.resolveDynamicContent(textLayer.content || "");
         const lines = text.split("\n");
 
@@ -304,40 +426,133 @@ export class TemplateRenderer {
           const mCtx = mCanvas.getContext("2d");
           if (mCtx) {
             mCtx.font = `${fontWeight} ${fontSize}px "${fontFamily}", "${rawFontFamily}", sans-serif`;
-            textW = Math.max(...lines.map((l) => mCtx.measureText(l || "Ag").width), 20);
+            textW = Math.max(
+              ...lines.map((l) => mCtx.measureText(l || "Ag").width),
+              20,
+            );
           }
         }
         if (!textW) {
           const charFactor = Number(fontWeight) >= 600 ? 0.72 : 0.65;
-          textW = Math.max(...lines.map((l) => l.length * fontSize * charFactor), 20);
+          textW = Math.max(
+            ...lines.map((l) => l.length * fontSize * charFactor),
+            20,
+          );
         }
 
-        const textH = lines.length === 1 ? fontSize * 1.2 : lines.length * fontSize * 1.25;
-        const isAutoOrBox = rawW === "auto" || textLayer.overflow === "expand-panel" || (textLayer.backgroundColor !== undefined && textLayer.backgroundColor !== null);
+        const lineHeightMultiplier =
+          Number(
+            evaluateAnimatable(
+              textLayer.lineHeight,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 1.25;
+        const lineAdvance = fontSize * lineHeightMultiplier;
+        const textH =
+          lines.length === 1
+            ? fontSize * 1.2
+            : fontSize * 1.0 + (lines.length - 1) * lineAdvance;
+        const isAutoOrBox =
+          rawW === "auto" ||
+          textLayer.overflow === "expand-panel" ||
+          (textLayer.backgroundColor !== undefined &&
+            textLayer.backgroundColor !== null);
 
         const w = isAutoOrBox ? textW + padL + padR : Number(rawW);
         const h = rawH === "auto" ? textH + padT + padB : Number(rawH);
         measuredBounds.set(layer.id, { width: w, height: h });
       } else if (layer.kind === "shape" || layer.kind === "image") {
-        const w = Number(evaluateAnimatable((layer as any).width, this.currentTime, this.template.duration)) || 100;
-        const h = Number(evaluateAnimatable((layer as any).height, this.currentTime, this.template.duration)) || 100;
+        const w =
+          Number(
+            evaluateAnimatable(
+              (layer as any).width,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 100;
+        const h =
+          Number(
+            evaluateAnimatable(
+              (layer as any).height,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 100;
         measuredBounds.set(layer.id, { width: w, height: h });
       }
     }
 
     for (const container of containers) {
-      const children = layers.filter((l) => l.parentId === container.id && l.visible !== false);
-      const layout = container.layout || { type: "flex", direction: "column", gap: 0, alignItems: "start", justifyContent: "start" };
+      const children = layers.filter(
+        (l) => l.parentId === container.id && l.visible !== false,
+      );
+      const layout = container.layout || {
+        type: "flex",
+        direction: "column",
+        gap: 0,
+        alignItems: "start",
+        justifyContent: "start",
+      };
       const direction = layout.direction || "column";
-      const gap = Number(evaluateAnimatable(layout.gap, this.currentTime, this.template.duration)) || 0;
-      const padTop = Number(evaluateAnimatable(layout.paddingTop, this.currentTime, this.template.duration)) || 0;
-      const padRight = Number(evaluateAnimatable(layout.paddingRight, this.currentTime, this.template.duration)) || 0;
-      const padBottom = Number(evaluateAnimatable(layout.paddingBottom, this.currentTime, this.template.duration)) || 0;
-      const padLeft = Number(evaluateAnimatable(layout.paddingLeft, this.currentTime, this.template.duration)) || 0;
+      const gap =
+        Number(
+          evaluateAnimatable(
+            layout.gap,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
+      const padTop =
+        Number(
+          evaluateAnimatable(
+            layout.paddingTop,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
+      const padRight =
+        Number(
+          evaluateAnimatable(
+            layout.paddingRight,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
+      const padBottom =
+        Number(
+          evaluateAnimatable(
+            layout.paddingBottom,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
+      const padLeft =
+        Number(
+          evaluateAnimatable(
+            layout.paddingLeft,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
       const alignItems = layout.alignItems || "center";
 
-      const containerX = Number(evaluateAnimatable(container.x, this.currentTime, this.template.duration)) || 0;
-      const containerY = Number(evaluateAnimatable(container.y, this.currentTime, this.template.duration)) || 0;
+      const containerX =
+        Number(
+          evaluateAnimatable(
+            container.x,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
+      const containerY =
+        Number(
+          evaluateAnimatable(
+            container.y,
+            this.currentTime,
+            this.template.duration,
+          ),
+        ) || 0;
 
       if (direction === "column") {
         let totalChildHeight = 0;
@@ -356,18 +571,43 @@ export class TemplateRenderer {
 
         const rawContainerW = container.width;
         const rawContainerH = container.height;
-        const declaredW = (rawContainerW === "auto" || !rawContainerW)
-          ? 0
-          : (Number(evaluateAnimatable(rawContainerW, this.currentTime, this.template.duration)) || 0);
-        const declaredH = (rawContainerH === "auto" || !rawContainerH)
-          ? 0
-          : (Number(evaluateAnimatable(rawContainerH, this.currentTime, this.template.duration)) || 0);
+        const declaredW =
+          rawContainerW === "auto" || !rawContainerW
+            ? 0
+            : Number(
+                evaluateAnimatable(
+                  rawContainerW,
+                  this.currentTime,
+                  this.template.duration,
+                ),
+              ) || 0;
+        const declaredH =
+          rawContainerH === "auto" || !rawContainerH
+            ? 0
+            : Number(
+                evaluateAnimatable(
+                  rawContainerH,
+                  this.currentTime,
+                  this.template.duration,
+                ),
+              ) || 0;
 
         // Container dynamically hugs all child bounds with full padding (with declared size acting as minimum if set)
-        const containerW = Math.max(declaredW, maxChildWidth + padLeft + padRight);
-        const containerH = Math.max(declaredH, totalChildHeight + padTop + padBottom);
+        const containerW = Math.max(
+          declaredW,
+          maxChildWidth + padLeft + padRight,
+        );
+        const containerH = Math.max(
+          declaredH,
+          totalChildHeight + padTop + padBottom,
+        );
 
-        this.computedFlexLayouts.set(container.id, { x: containerX, y: containerY, width: containerW, height: containerH });
+        this.computedFlexLayouts.set(container.id, {
+          x: containerX,
+          y: containerY,
+          width: containerW,
+          height: containerH,
+        });
 
         let currentY = containerY + padTop;
         const innerW = Math.max(0, containerW - padLeft - padRight);
@@ -411,17 +651,42 @@ export class TemplateRenderer {
 
         const rawContainerW = container.width;
         const rawContainerH = container.height;
-        const declaredW = (rawContainerW === "auto" || !rawContainerW)
-          ? 0
-          : (Number(evaluateAnimatable(rawContainerW, this.currentTime, this.template.duration)) || 0);
-        const declaredH = (rawContainerH === "auto" || !rawContainerH)
-          ? 0
-          : (Number(evaluateAnimatable(rawContainerH, this.currentTime, this.template.duration)) || 0);
+        const declaredW =
+          rawContainerW === "auto" || !rawContainerW
+            ? 0
+            : Number(
+                evaluateAnimatable(
+                  rawContainerW,
+                  this.currentTime,
+                  this.template.duration,
+                ),
+              ) || 0;
+        const declaredH =
+          rawContainerH === "auto" || !rawContainerH
+            ? 0
+            : Number(
+                evaluateAnimatable(
+                  rawContainerH,
+                  this.currentTime,
+                  this.template.duration,
+                ),
+              ) || 0;
 
-        const containerW = Math.max(declaredW, totalChildWidth + padLeft + padRight);
-        const containerH = Math.max(declaredH, maxChildHeight + padTop + padBottom);
+        const containerW = Math.max(
+          declaredW,
+          totalChildWidth + padLeft + padRight,
+        );
+        const containerH = Math.max(
+          declaredH,
+          maxChildHeight + padTop + padBottom,
+        );
 
-        this.computedFlexLayouts.set(container.id, { x: containerX, y: containerY, width: containerW, height: containerH });
+        this.computedFlexLayouts.set(container.id, {
+          x: containerX,
+          y: containerY,
+          width: containerW,
+          height: containerH,
+        });
 
         let currentX = containerX + padLeft;
         const innerH = Math.max(0, containerH - padTop - padBottom);
@@ -450,21 +715,101 @@ export class TemplateRenderer {
     }
   }
 
-  private drawContainerLayer(ctx: CanvasRenderingContext2D, layer: TemplateContainerLayer): void {
+  private drawContainerLayer(
+    ctx: CanvasRenderingContext2D,
+    layer: TemplateContainerLayer,
+  ): void {
     const resolved = layer;
     const layout = this.computedFlexLayouts.get(resolved.id);
-    const x = layout?.x ?? (Number(evaluateAnimatable(resolved.x, this.currentTime, this.template.duration)) || 0);
-    const y = layout?.y ?? (Number(evaluateAnimatable(resolved.y, this.currentTime, this.template.duration)) || 0);
-    const width = layout?.width ?? (resolved.width === "auto" ? 400 : (Number(evaluateAnimatable(resolved.width, this.currentTime, this.template.duration)) || 400));
-    const height = layout?.height ?? (resolved.height === "auto" ? 200 : (Number(evaluateAnimatable(resolved.height, this.currentTime, this.template.duration)) || 200));
+    const x =
+      layout?.x ??
+      (Number(
+        evaluateAnimatable(
+          resolved.x,
+          this.currentTime,
+          this.template.duration,
+        ),
+      ) ||
+        0);
+    const y =
+      layout?.y ??
+      (Number(
+        evaluateAnimatable(
+          resolved.y,
+          this.currentTime,
+          this.template.duration,
+        ),
+      ) ||
+        0);
+    const width =
+      layout?.width ??
+      (resolved.width === "auto"
+        ? 400
+        : Number(
+            evaluateAnimatable(
+              resolved.width,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 400);
+    const height =
+      layout?.height ??
+      (resolved.height === "auto"
+        ? 200
+        : Number(
+            evaluateAnimatable(
+              resolved.height,
+              this.currentTime,
+              this.template.duration,
+            ),
+          ) || 200);
 
     this.lastLayerLayouts.set(resolved.id, { x, y, width, height });
 
-    const bgColor = resolved.backgroundColor ? evaluateAnimatable(resolved.backgroundColor, this.currentTime, this.template.duration) : null;
-    const bgOpacity = resolved.backgroundOpacity !== undefined ? Number(evaluateAnimatable(resolved.backgroundOpacity, this.currentTime, this.template.duration)) : 1;
-    const bgRadius = resolved.backgroundRadius !== undefined ? Number(evaluateAnimatable(resolved.backgroundRadius, this.currentTime, this.template.duration)) : 0;
-    const borderColor = resolved.backgroundBorderColor ? evaluateAnimatable(resolved.backgroundBorderColor, this.currentTime, this.template.duration) : null;
-    const borderWidth = resolved.backgroundBorderWidth !== undefined ? Number(evaluateAnimatable(resolved.backgroundBorderWidth, this.currentTime, this.template.duration)) : 0;
+    const bgColor = resolved.backgroundColor
+      ? evaluateAnimatable(
+          resolved.backgroundColor,
+          this.currentTime,
+          this.template.duration,
+        )
+      : null;
+    const bgOpacity =
+      resolved.backgroundOpacity !== undefined
+        ? Number(
+            evaluateAnimatable(
+              resolved.backgroundOpacity,
+              this.currentTime,
+              this.template.duration,
+            ),
+          )
+        : 1;
+    const bgRadius =
+      resolved.backgroundRadius !== undefined
+        ? Number(
+            evaluateAnimatable(
+              resolved.backgroundRadius,
+              this.currentTime,
+              this.template.duration,
+            ),
+          )
+        : 0;
+    const borderColor = resolved.backgroundBorderColor
+      ? evaluateAnimatable(
+          resolved.backgroundBorderColor,
+          this.currentTime,
+          this.template.duration,
+        )
+      : null;
+    const borderWidth =
+      resolved.backgroundBorderWidth !== undefined
+        ? Number(
+            evaluateAnimatable(
+              resolved.backgroundBorderWidth,
+              this.currentTime,
+              this.template.duration,
+            ),
+          )
+        : 0;
 
     if (bgColor || (borderColor && borderWidth > 0)) {
       const currentAlpha = ctx.globalAlpha;
@@ -477,7 +822,12 @@ export class TemplateRenderer {
         ctx.lineTo(x + width - bgRadius, y);
         ctx.quadraticCurveTo(x + width, y, x + width, y + bgRadius);
         ctx.lineTo(x + width, y + height - bgRadius);
-        ctx.quadraticCurveTo(x + width, y + height, x + width - bgRadius, y + height);
+        ctx.quadraticCurveTo(
+          x + width,
+          y + height,
+          x + width - bgRadius,
+          y + height,
+        );
         ctx.lineTo(x + bgRadius, y + height);
         ctx.quadraticCurveTo(x, y + height, x, y + height - bgRadius);
         ctx.lineTo(x, y + bgRadius);
@@ -503,7 +853,10 @@ export class TemplateRenderer {
     }
   }
 
-  private drawLayers(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, time: number): void {
+  private drawLayers(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    time: number,
+  ): void {
     if (!this.template || !Array.isArray(this.template.layers)) return;
     this.lastLayerLayouts.clear();
     this.computeFlexLayouts(time);
@@ -514,7 +867,14 @@ export class TemplateRenderer {
       const transform = this.computeTransform(resolved, time);
 
       // Evaluate layer opacity
-      const layerOpacity = (resolved as any).opacity !== undefined ? evaluateAnimatable((resolved as any).opacity, this.currentTime, this.template.duration) : 1;
+      const layerOpacity =
+        (resolved as any).opacity !== undefined
+          ? evaluateAnimatable(
+              (resolved as any).opacity,
+              this.currentTime,
+              this.template.duration,
+            )
+          : 1;
 
       ctx.save();
       ctx.globalAlpha = transform.opacity * layerOpacity; // Combine animation and layer opacity
@@ -529,14 +889,28 @@ export class TemplateRenderer {
 
       if (resolved.kind === "text") {
         const textLayer = resolved as TemplateTextLayer;
-        const rawW = flexLayout?.width ?? this.evaluateTextDimension(textLayer, "width");
-        const rawH = flexLayout?.height ?? this.evaluateTextDimension(textLayer, "height");
+        const rawW =
+          flexLayout?.width ?? this.evaluateTextDimension(textLayer, "width");
+        const rawH =
+          flexLayout?.height ?? this.evaluateTextDimension(textLayer, "height");
         // For auto dims use the layer origin as pivot (scale from top-left corner).
         cx = rawW === "auto" ? x : x + (rawW as number) / 2;
         cy = rawH === "auto" ? y : y + (rawH as number) / 2;
       } else {
-        const width = flexLayout?.width ?? (evaluateAnimatable((resolved as any).width, this.currentTime, this.template.duration) as number);
-        const height = flexLayout?.height ?? (evaluateAnimatable((resolved as any).height, this.currentTime, this.template.duration) as number);
+        const width =
+          flexLayout?.width ??
+          (evaluateAnimatable(
+            (resolved as any).width,
+            this.currentTime,
+            this.template.duration,
+          ) as number);
+        const height =
+          flexLayout?.height ??
+          (evaluateAnimatable(
+            (resolved as any).height,
+            this.currentTime,
+            this.template.duration,
+          ) as number);
         cx = x + width / 2;
         cy = y + height / 2;
       }
@@ -552,20 +926,37 @@ export class TemplateRenderer {
       }
 
       if (resolved.kind === "text") {
-        this.drawTextLayer(ctx as CanvasRenderingContext2D, resolved as TemplateTextLayer, transform);
+        this.drawTextLayer(
+          ctx as CanvasRenderingContext2D,
+          resolved as TemplateTextLayer,
+          transform,
+        );
       } else if (resolved.kind === "shape") {
-        this.drawShapeLayer(ctx as CanvasRenderingContext2D, resolved as TemplateShapeLayer);
+        this.drawShapeLayer(
+          ctx as CanvasRenderingContext2D,
+          resolved as TemplateShapeLayer,
+        );
       } else if (resolved.kind === "image") {
-        this.drawImageLayer(ctx as CanvasRenderingContext2D, resolved as TemplateImageLayer);
+        this.drawImageLayer(
+          ctx as CanvasRenderingContext2D,
+          resolved as TemplateImageLayer,
+        );
       } else if (resolved.kind === "container") {
-        this.drawContainerLayer(ctx as CanvasRenderingContext2D, resolved as TemplateContainerLayer);
+        this.drawContainerLayer(
+          ctx as CanvasRenderingContext2D,
+          resolved as TemplateContainerLayer,
+        );
       }
 
       ctx.restore();
     }
   }
 
-  private drawTextLayer(ctx: CanvasRenderingContext2D, layer: TemplateTextLayer, transform: AnimationState): void {
+  private drawTextLayer(
+    ctx: CanvasRenderingContext2D,
+    layer: TemplateTextLayer,
+    transform: AnimationState,
+  ): void {
     const resolved = layer;
     // Resolve dynamic variables in text content
     const rawContent = resolved.content;
@@ -573,37 +964,125 @@ export class TemplateRenderer {
 
     const rawFontFamily = resolved.fontFamily;
     const fontFamily = resolveFontFamilyName(rawFontFamily);
-    const fontSize = evaluateAnimatable(resolved.fontSize, this.currentTime, this.template.duration);
-    const fontWeight = evaluateAnimatable(resolved.fontWeight, this.currentTime, this.template.duration);
-    const color = evaluateAnimatable(resolved.color, this.currentTime, this.template.duration);
+    const fontSize = evaluateAnimatable(
+      resolved.fontSize,
+      this.currentTime,
+      this.template.duration,
+    );
+    const fontWeight = evaluateAnimatable(
+      resolved.fontWeight,
+      this.currentTime,
+      this.template.duration,
+    );
+    const color = evaluateAnimatable(
+      resolved.color,
+      this.currentTime,
+      this.template.duration,
+    );
     const align = resolved.align;
     const flexLayout = this.computedFlexLayouts.get(resolved.id);
-    const x = flexLayout?.x ?? evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
-    const y = flexLayout?.y ?? evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
+    const x =
+      flexLayout?.x ??
+      evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
+    const y =
+      flexLayout?.y ??
+      evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
 
     // width / height may be "auto" — defer resolution until after ctx.font is set.
-    const rawWidth = flexLayout?.width ?? this.evaluateTextDimension(resolved, "width");
-    const rawHeight = flexLayout?.height ?? this.evaluateTextDimension(resolved, "height");
+    const rawWidth =
+      flexLayout?.width ?? this.evaluateTextDimension(resolved, "width");
+    const rawHeight =
+      flexLayout?.height ?? this.evaluateTextDimension(resolved, "height");
 
     // Evaluate background properties if present
-    const backgroundColor = resolved.backgroundColor ? evaluateAnimatable(resolved.backgroundColor, this.currentTime, this.template.duration) : null;
-    const backgroundOpacity = resolved.backgroundOpacity !== undefined ? evaluateAnimatable(resolved.backgroundOpacity, this.currentTime, this.template.duration) : 1;
-    const backgroundRadius = resolved.backgroundRadius !== undefined ? evaluateAnimatable(resolved.backgroundRadius, this.currentTime, this.template.duration) : 0;
-    const backgroundBorderColor = resolved.backgroundBorderColor ? evaluateAnimatable(resolved.backgroundBorderColor, this.currentTime, this.template.duration) : null;
-    const backgroundBorderWidth = resolved.backgroundBorderWidth !== undefined ? evaluateAnimatable(resolved.backgroundBorderWidth, this.currentTime, this.template.duration) : 0;
+    const backgroundColor = resolved.backgroundColor
+      ? evaluateAnimatable(
+          resolved.backgroundColor,
+          this.currentTime,
+          this.template.duration,
+        )
+      : null;
+    const backgroundOpacity =
+      resolved.backgroundOpacity !== undefined
+        ? evaluateAnimatable(
+            resolved.backgroundOpacity,
+            this.currentTime,
+            this.template.duration,
+          )
+        : 1;
+    const backgroundRadius =
+      resolved.backgroundRadius !== undefined
+        ? evaluateAnimatable(
+            resolved.backgroundRadius,
+            this.currentTime,
+            this.template.duration,
+          )
+        : 0;
+    const backgroundBorderColor = resolved.backgroundBorderColor
+      ? evaluateAnimatable(
+          resolved.backgroundBorderColor,
+          this.currentTime,
+          this.template.duration,
+        )
+      : null;
+    const backgroundBorderWidth =
+      resolved.backgroundBorderWidth !== undefined
+        ? evaluateAnimatable(
+            resolved.backgroundBorderWidth,
+            this.currentTime,
+            this.template.duration,
+          )
+        : 0;
 
     // Resolve per-side padding — individual sides take priority; fall back to legacy `padding`
-    const legacyPadding = resolved.padding !== undefined ? evaluateAnimatable(resolved.padding, this.currentTime, this.template.duration) : 0;
-    const pt = resolved.paddingTop !== undefined ? evaluateAnimatable(resolved.paddingTop, this.currentTime, this.template.duration) : legacyPadding;
-    const pr = resolved.paddingRight !== undefined ? evaluateAnimatable(resolved.paddingRight, this.currentTime, this.template.duration) : legacyPadding;
-    const pb = resolved.paddingBottom !== undefined ? evaluateAnimatable(resolved.paddingBottom, this.currentTime, this.template.duration) : legacyPadding;
-    const pl = resolved.paddingLeft !== undefined ? evaluateAnimatable(resolved.paddingLeft, this.currentTime, this.template.duration) : legacyPadding;
+    const legacyPadding =
+      resolved.padding !== undefined
+        ? evaluateAnimatable(
+            resolved.padding,
+            this.currentTime,
+            this.template.duration,
+          )
+        : 0;
+    const pt =
+      resolved.paddingTop !== undefined
+        ? evaluateAnimatable(
+            resolved.paddingTop,
+            this.currentTime,
+            this.template.duration,
+          )
+        : legacyPadding;
+    const pr =
+      resolved.paddingRight !== undefined
+        ? evaluateAnimatable(
+            resolved.paddingRight,
+            this.currentTime,
+            this.template.duration,
+          )
+        : legacyPadding;
+    const pb =
+      resolved.paddingBottom !== undefined
+        ? evaluateAnimatable(
+            resolved.paddingBottom,
+            this.currentTime,
+            this.template.duration,
+          )
+        : legacyPadding;
+    const pl =
+      resolved.paddingLeft !== undefined
+        ? evaluateAnimatable(
+            resolved.paddingLeft,
+            this.currentTime,
+            this.template.duration,
+          )
+        : legacyPadding;
 
     const overflow = resolved.overflow;
     const verticalAlign = resolved.verticalAlign || "middle";
 
     // Slice characters for typewriter animations
-    const visibleCharsCount = Math.floor(transform.typewriterProgress * content.length);
+    const visibleCharsCount = Math.floor(
+      transform.typewriterProgress * content.length,
+    );
     const textToDraw = content.slice(0, visibleCharsCount);
 
     ctx.save();
@@ -613,16 +1092,33 @@ export class TemplateRenderer {
 
     // ── Resolve "auto" dimensions after ctx.font is set so measureText is accurate ──
     let adjustedFontSize = fontSize;
-    let lines = [textToDraw];
+    const lineHeightMultiplier =
+      Number(
+        evaluateAnimatable(
+          resolved.lineHeight,
+          this.currentTime,
+          this.template.duration,
+        ),
+      ) || 1.25;
+    const rawLines = textToDraw.split("\n");
+    let lines = rawLines;
 
-    const measuredTextWidth = ctx.measureText(textToDraw || "Ag").width;
+    const maxLineTextWidth = Math.max(
+      ...rawLines.map((l) => ctx.measureText(l || "Ag").width),
+      20,
+    );
     let resolvedWidth: number;
-    if (rawWidth === "auto" || overflow === "expand-panel" || (backgroundColor && (rawWidth === "auto" || !rawWidth))) {
-      resolvedWidth = measuredTextWidth + pl + pr;
+    if (
+      rawWidth === "auto" ||
+      overflow === "expand-panel" ||
+      (backgroundColor && !rawWidth)
+    ) {
+      resolvedWidth = maxLineTextWidth + pl + pr;
     } else if (flexLayout) {
-      resolvedWidth = (overflow === "shrink" || overflow === "wrap")
-        ? (flexLayout.width)
-        : Math.max(flexLayout.width, measuredTextWidth + pl + pr);
+      resolvedWidth =
+        overflow === "shrink" || overflow === "wrap"
+          ? flexLayout.width
+          : Math.max(flexLayout.width, maxLineTextWidth + pl + pr);
     } else {
       resolvedWidth = rawWidth as number;
     }
@@ -630,7 +1126,10 @@ export class TemplateRenderer {
     const contentW = Math.max(0, resolvedWidth - pl - pr);
 
     if (overflow === "shrink") {
-      let scale = measuredTextWidth > contentW && contentW > 0 ? contentW / measuredTextWidth : 1;
+      let scale =
+        maxLineTextWidth > contentW && contentW > 0
+          ? contentW / maxLineTextWidth
+          : 1;
       if (rawHeight !== "auto") {
         const declaredContentH = Math.max(0, (rawHeight as number) - pt - pb);
         const singleLineH = fontSize * 1.0;
@@ -642,20 +1141,29 @@ export class TemplateRenderer {
         adjustedFontSize = fontSize * scale;
         ctx.font = `${fontWeight} ${adjustedFontSize}px "${fontFamily}", "${rawFontFamily}", sans-serif`;
       }
-    } else if (overflow === "wrap") {
-      lines = wrapTextToWidth(ctx, textToDraw, contentW, 0);
+    } else if (overflow === "wrap" && contentW > 0) {
+      lines = [];
+      for (const rLine of rawLines) {
+        lines.push(...wrapTextToWidth(ctx, rLine, contentW, 0));
+      }
     } else if (overflow === "expand-panel") {
-      resolvedWidth = measuredTextWidth + pl + pr;
+      resolvedWidth = maxLineTextWidth + pl + pr;
     }
+
+    const lineAdvance = adjustedFontSize * lineHeightMultiplier;
+    const sampleMetrics = ctx.measureText(lines[0] || "Ag");
+    const ascent =
+      sampleMetrics.actualBoundingBoxAscent ?? adjustedFontSize * 0.8;
+    const descent =
+      sampleMetrics.actualBoundingBoxDescent ?? adjustedFontSize * 0.2;
+    const inkLineH = ascent + descent;
+    const totalInkH =
+      lines.length === 1
+        ? inkLineH
+        : inkLineH + (lines.length - 1) * lineAdvance;
 
     let resolvedHeight: number;
     if (rawHeight === "auto") {
-      const sampleMetrics = ctx.measureText(lines[0] || "Ag");
-      const ascent = sampleMetrics.actualBoundingBoxAscent ?? adjustedFontSize * 0.8;
-      const descent = sampleMetrics.actualBoundingBoxDescent ?? adjustedFontSize * 0.2;
-      const inkLineH = ascent + descent;
-      const lineAdvance = adjustedFontSize * 1.2;
-      const totalInkH = lines.length === 1 ? inkLineH : inkLineH + (lines.length - 1) * lineAdvance;
       resolvedHeight = totalInkH + pt + pb;
     } else {
       resolvedHeight = rawHeight as number;
@@ -668,7 +1176,8 @@ export class TemplateRenderer {
 
     if (overflow === "expand-panel" || rawWidth === "auto") {
       if (align === "center") {
-        bgX = rawWidth === "auto" ? x : x + (rawWidth as number) / 2 - bgWidth / 2;
+        bgX =
+          rawWidth === "auto" ? x : x + (rawWidth as number) / 2 - bgWidth / 2;
       } else if (align === "right") {
         bgX = rawWidth === "auto" ? x : x + (rawWidth as number) - bgWidth;
       } else {
@@ -682,7 +1191,7 @@ export class TemplateRenderer {
         resolved.anchor,
         { x: bgX, y: bgY, width: bgWidth, height: bgHeight },
         this.template.canvasWidth,
-        this.template.canvasHeight
+        this.template.canvasHeight,
       );
       bgX = anchored.x;
       bgY = anchored.y;
@@ -690,20 +1199,32 @@ export class TemplateRenderer {
       bgHeight = anchored.height;
     }
 
-    this.lastLayerLayouts.set(resolved.id, { x: bgX, y: bgY, width: bgWidth, height: bgHeight });
+    this.lastLayerLayouts.set(resolved.id, {
+      x: bgX,
+      y: bgY,
+      width: bgWidth,
+      height: bgHeight,
+    });
 
     // A pinned effect owns its own bleed (glow/shadow/stroke).
     const styleRef = (resolved as any).styleRef;
     if (styleRef?.snapshot?.effectLayers) {
-      const effectCanvas = typeof OffscreenCanvas !== "undefined"
-        ? new OffscreenCanvas(Math.max(1, Math.ceil(bgWidth)), Math.max(1, Math.ceil(bgHeight)))
-        : typeof document !== "undefined"
+      const effectCanvas =
+        typeof OffscreenCanvas !== "undefined"
+          ? new OffscreenCanvas(
+              Math.max(1, Math.ceil(bgWidth)),
+              Math.max(1, Math.ceil(bgHeight)),
+            )
+          : typeof document !== "undefined"
           ? Object.assign(document.createElement("canvas"), {
               width: Math.max(1, Math.ceil(bgWidth)),
               height: Math.max(1, Math.ceil(bgHeight)),
             })
           : null;
-      const effectCtx = effectCanvas?.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+      const effectCtx = effectCanvas?.getContext("2d") as
+        | CanvasRenderingContext2D
+        | OffscreenCanvasRenderingContext2D
+        | null;
       if (effectCtx) {
         const effectScene = JSON.parse(JSON.stringify(styleRef.snapshot));
         effectScene.canvas.width = Math.max(1, Math.ceil(bgWidth));
@@ -715,7 +1236,13 @@ export class TemplateRenderer {
         effectScene.text.textPosX = "center";
         effectScene.text.textPosY = "middle";
         evaluateScene(effectScene, this.currentTime, effectCtx);
-        ctx.drawImage(effectCanvas as CanvasImageSource, bgX, bgY, bgWidth, bgHeight);
+        ctx.drawImage(
+          effectCanvas as CanvasImageSource,
+          bgX,
+          bgY,
+          bgWidth,
+          bgHeight,
+        );
         ctx.restore();
         return;
       }
@@ -734,11 +1261,26 @@ export class TemplateRenderer {
       if (backgroundRadius > 0) {
         ctx.moveTo(bgX + backgroundRadius, bgY);
         ctx.lineTo(bgX + bgWidth - backgroundRadius, bgY);
-        ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + backgroundRadius);
+        ctx.quadraticCurveTo(
+          bgX + bgWidth,
+          bgY,
+          bgX + bgWidth,
+          bgY + backgroundRadius,
+        );
         ctx.lineTo(bgX + bgWidth, bgY + bgHeight - backgroundRadius);
-        ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - backgroundRadius, bgY + bgHeight);
+        ctx.quadraticCurveTo(
+          bgX + bgWidth,
+          bgY + bgHeight,
+          bgX + bgWidth - backgroundRadius,
+          bgY + bgHeight,
+        );
         ctx.lineTo(bgX + backgroundRadius, bgY + bgHeight);
-        ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - backgroundRadius);
+        ctx.quadraticCurveTo(
+          bgX,
+          bgY + bgHeight,
+          bgX,
+          bgY + bgHeight - backgroundRadius,
+        );
         ctx.lineTo(bgX, bgY + backgroundRadius);
         ctx.quadraticCurveTo(bgX, bgY, bgX + backgroundRadius, bgY);
       } else {
@@ -759,11 +1301,26 @@ export class TemplateRenderer {
         ctx.beginPath();
         ctx.moveTo(bgX + backgroundRadius, bgY);
         ctx.lineTo(bgX + bgWidth - backgroundRadius, bgY);
-        ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + backgroundRadius);
+        ctx.quadraticCurveTo(
+          bgX + bgWidth,
+          bgY,
+          bgX + bgWidth,
+          bgY + backgroundRadius,
+        );
         ctx.lineTo(bgX + bgWidth, bgY + bgHeight - backgroundRadius);
-        ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - backgroundRadius, bgY + bgHeight);
+        ctx.quadraticCurveTo(
+          bgX + bgWidth,
+          bgY + bgHeight,
+          bgX + bgWidth - backgroundRadius,
+          bgY + bgHeight,
+        );
         ctx.lineTo(bgX + backgroundRadius, bgY + bgHeight);
-        ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - backgroundRadius);
+        ctx.quadraticCurveTo(
+          bgX,
+          bgY + bgHeight,
+          bgX,
+          bgY + bgHeight - backgroundRadius,
+        );
         ctx.lineTo(bgX, bgY + backgroundRadius);
         ctx.quadraticCurveTo(bgX, bgY, bgX + backgroundRadius, bgY);
         ctx.closePath();
@@ -800,18 +1357,21 @@ export class TemplateRenderer {
       drawX = contentX;
     }
 
-    const sampleMetrics = ctx.measureText(lines[0] || "Ag");
-    const ascent = sampleMetrics.actualBoundingBoxAscent ?? adjustedFontSize * 0.8;
-    const descent = sampleMetrics.actualBoundingBoxDescent ?? adjustedFontSize * 0.2;
-    const inkLineH = ascent + descent;
-    const lineHeight = adjustedFontSize * 1.2;
-
     // ── Check if Kinetic Text Splitting is active on this layer ─────────────
     if (resolved.splitAnimator) {
       const inEnd = resolved.animation.inDuration;
-      const animProgress = inEnd > 0 ? Math.min(1, Math.max(0, this.currentTime / inEnd)) : 1;
-      const splitUnits = splitTextContent(textToDraw, resolved.splitAnimator.splitBy);
-      const computedUnits = evaluateSplitTextTransforms(splitUnits, resolved.splitAnimator, animProgress, "in");
+      const animProgress =
+        inEnd > 0 ? Math.min(1, Math.max(0, this.currentTime / inEnd)) : 1;
+      const splitUnits = splitTextContent(
+        textToDraw,
+        resolved.splitAnimator.splitBy,
+      );
+      const computedUnits = evaluateSplitTextTransforms(
+        splitUnits,
+        resolved.splitAnimator,
+        animProgress,
+        "in",
+      );
 
       let currentX = drawX;
       if (align === "center") {
@@ -822,13 +1382,22 @@ export class TemplateRenderer {
         currentX = contentX + contentW - fullW;
       }
 
-      const drawY = verticalAlign === "top" ? contentY + ascent : verticalAlign === "bottom" ? contentY + contentH - descent : contentY + (contentH - inkLineH) / 2 + ascent;
+      const drawY =
+        verticalAlign === "top"
+          ? contentY + ascent
+          : verticalAlign === "bottom"
+          ? contentY + contentH - descent
+          : contentY + (contentH - inkLineH) / 2 + ascent;
 
       computedUnits.forEach((item, unitIdx) => {
-        const span = getSpanForCharIndex(resolved.spans, item.unit.charStartIndex);
-        const charColor = resolved.perCharFillEnabled && resolved.charFillColors?.[unitIdx]
-          ? resolved.charFillColors[unitIdx]
-          : span?.color || color;
+        const span = getSpanForCharIndex(
+          resolved.spans,
+          item.unit.charStartIndex,
+        );
+        const charColor =
+          resolved.perCharFillEnabled && resolved.charFillColors?.[unitIdx]
+            ? resolved.charFillColors[unitIdx]
+            : span?.color || color;
 
         ctx.save();
         ctx.globalAlpha = ctx.globalAlpha * item.opacity;
@@ -847,19 +1416,32 @@ export class TemplateRenderer {
           ctx.filter = `blur(${item.blur}px)`;
         }
 
-        ctx.fillText(item.unit.text, currentX + item.x, drawY + item.y + (span?.baselineShift || 0));
+        ctx.fillText(
+          item.unit.text,
+          currentX + item.x,
+          drawY + item.y + (span?.baselineShift || 0),
+        );
         ctx.restore();
 
         currentX += uW + (item.letterSpacingOffset || 0);
       });
     } else if (resolved.spans && resolved.spans.length > 0) {
       // ── Span-Level / Per-Character Rich Text Rendering ────────────────────
-      const totalInkHeight = inkLineH + (lines.length - 1) * lineHeight;
-      let firstBaselineY = verticalAlign === "top" ? contentY + ascent : verticalAlign === "bottom" ? contentY + contentH - totalInkHeight + ascent : contentY + (contentH - totalInkHeight) / 2 + ascent;
+      const totalInkHeight =
+        lines.length === 1
+          ? inkLineH
+          : inkLineH + (lines.length - 1) * lineAdvance;
+      let firstBaselineY =
+        verticalAlign === "top"
+          ? contentY + ascent
+          : verticalAlign === "bottom"
+          ? contentY + contentH - totalInkHeight + ascent
+          : contentY + (contentH - totalInkHeight) / 2 + ascent;
 
       let globalCharIndex = 0;
+      ctx.textAlign = "left";
       lines.forEach((line, lineIndex) => {
-        let curX = drawX;
+        let curX = contentX;
         if (align === "center") {
           const lW = ctx.measureText(line).width;
           curX = contentX + (contentW - lW) / 2;
@@ -871,16 +1453,28 @@ export class TemplateRenderer {
         const chars = Array.from(line);
         chars.forEach((ch) => {
           const span = getSpanForCharIndex(resolved.spans, globalCharIndex);
-          const chColor = resolved.perCharFillEnabled && resolved.charFillColors?.[globalCharIndex]
-            ? resolved.charFillColors[globalCharIndex]
-            : span?.color || color;
+          const chColor =
+            resolved.perCharFillEnabled &&
+            resolved.charFillColors?.[globalCharIndex]
+              ? resolved.charFillColors[globalCharIndex]
+              : span?.color || color;
 
           ctx.save();
           if (span?.fontFamily || span?.fontWeight || span?.fontSize) {
-            ctx.font = `${span.fontWeight || fontWeight} ${span.fontSize || adjustedFontSize}px "${resolveFontFamilyName(span.fontFamily || rawFontFamily)}", sans-serif`;
+            ctx.font = `${span.fontWeight || fontWeight} ${
+              span.fontSize || adjustedFontSize
+            }px "${resolveFontFamilyName(
+              span.fontFamily || rawFontFamily,
+            )}", sans-serif`;
           }
           ctx.fillStyle = chColor;
-          ctx.fillText(ch, curX, firstBaselineY + lineIndex * lineHeight + (span?.baselineShift || 0));
+          ctx.fillText(
+            ch,
+            curX,
+            firstBaselineY +
+              lineIndex * lineAdvance +
+              (span?.baselineShift || 0),
+          );
           ctx.restore();
 
           curX += ctx.measureText(ch).width + (span?.letterSpacing || 0);
@@ -889,48 +1483,64 @@ export class TemplateRenderer {
         globalCharIndex += 1; // newline
       });
     } else {
-      // ── Standard Text Rendering ──────────────────────────────────────────
-      if (overflow === "wrap") {
-        const totalInkHeight = inkLineH + (lines.length - 1) * lineHeight;
-        let firstBaselineY: number;
-        if (verticalAlign === "top") {
-          firstBaselineY = contentY + ascent;
-        } else if (verticalAlign === "bottom") {
-          firstBaselineY = contentY + contentH - totalInkHeight + ascent;
-        } else {
-          firstBaselineY = contentY + (contentH - totalInkHeight) / 2 + ascent;
-        }
-        lines.forEach((line, index) => {
-          ctx.fillText(line, drawX, firstBaselineY + index * lineHeight);
-        });
+      // ── Standard Text Rendering (Multi-line + Single line) ─────────────────
+      const totalInkHeight =
+        lines.length === 1
+          ? inkLineH
+          : inkLineH + (lines.length - 1) * lineAdvance;
+      let firstBaselineY: number;
+      if (verticalAlign === "top") {
+        firstBaselineY = contentY + ascent;
+      } else if (verticalAlign === "bottom") {
+        firstBaselineY = contentY + contentH - totalInkHeight + ascent;
       } else {
-        let drawY: number;
-        if (verticalAlign === "top") {
-          drawY = contentY + ascent;
-        } else if (verticalAlign === "bottom") {
-          drawY = contentY + contentH - descent;
-        } else {
-          drawY = contentY + (contentH - inkLineH) / 2 + ascent;
-        }
-        ctx.fillText(lines[0], drawX, drawY);
+        firstBaselineY = contentY + (contentH - totalInkHeight) / 2 + ascent;
       }
+
+      ctx.textAlign = align;
+      lines.forEach((line, index) => {
+        ctx.fillText(line, drawX, firstBaselineY + index * lineAdvance);
+      });
     }
 
     ctx.restore();
     ctx.restore();
   }
 
-  private drawShapeLayer(ctx: CanvasRenderingContext2D, layer: TemplateShapeLayer): void {
+  private drawShapeLayer(
+    ctx: CanvasRenderingContext2D,
+    layer: TemplateShapeLayer,
+  ): void {
     const resolved = layer;
 
     // Evaluate all animatable properties at current time
     const shape = resolved.shape;
-    const fill = evaluateAnimatable(resolved.fill, this.currentTime, this.template.duration);
+    const fill = evaluateAnimatable(
+      resolved.fill,
+      this.currentTime,
+      this.template.duration,
+    );
     const flexLayout = this.computedFlexLayouts.get(resolved.id);
-    const x = flexLayout?.x ?? evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
-    const y = flexLayout?.y ?? evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
-    const width = flexLayout?.width ?? evaluateAnimatable(resolved.width, this.currentTime, this.template.duration);
-    const height = flexLayout?.height ?? evaluateAnimatable(resolved.height, this.currentTime, this.template.duration);
+    const x =
+      flexLayout?.x ??
+      evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
+    const y =
+      flexLayout?.y ??
+      evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
+    const width =
+      flexLayout?.width ??
+      evaluateAnimatable(
+        resolved.width,
+        this.currentTime,
+        this.template.duration,
+      );
+    const height =
+      flexLayout?.height ??
+      evaluateAnimatable(
+        resolved.height,
+        this.currentTime,
+        this.template.duration,
+      );
     const stroke = resolved.stroke;
 
     this.lastLayerLayouts.set(resolved.id, { x, y, width, height });
@@ -952,8 +1562,16 @@ export class TemplateRenderer {
     ctx.fill();
 
     if (stroke && stroke.width) {
-      const strokeWidth = evaluateAnimatable(stroke.width, this.currentTime, this.template.duration);
-      const strokeColor = evaluateAnimatable(stroke.color, this.currentTime, this.template.duration);
+      const strokeWidth = evaluateAnimatable(
+        stroke.width,
+        this.currentTime,
+        this.template.duration,
+      );
+      const strokeColor = evaluateAnimatable(
+        stroke.color,
+        this.currentTime,
+        this.template.duration,
+      );
 
       if (strokeWidth > 0) {
         ctx.strokeStyle = strokeColor;
@@ -963,16 +1581,35 @@ export class TemplateRenderer {
     }
   }
 
-  private drawImageLayer(ctx: CanvasRenderingContext2D, layer: TemplateImageLayer): void {
+  private drawImageLayer(
+    ctx: CanvasRenderingContext2D,
+    layer: TemplateImageLayer,
+  ): void {
     const resolved = layer;
 
     // Evaluate animatable properties
     const url = resolved.url;
     const flexLayout = this.computedFlexLayouts.get(resolved.id);
-    const x = flexLayout?.x ?? evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
-    const y = flexLayout?.y ?? evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
-    const width = flexLayout?.width ?? evaluateAnimatable(resolved.width, this.currentTime, this.template.duration);
-    const height = flexLayout?.height ?? evaluateAnimatable(resolved.height, this.currentTime, this.template.duration);
+    const x =
+      flexLayout?.x ??
+      evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
+    const y =
+      flexLayout?.y ??
+      evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
+    const width =
+      flexLayout?.width ??
+      evaluateAnimatable(
+        resolved.width,
+        this.currentTime,
+        this.template.duration,
+      );
+    const height =
+      flexLayout?.height ??
+      evaluateAnimatable(
+        resolved.height,
+        this.currentTime,
+        this.template.duration,
+      );
 
     this.lastLayerLayouts.set(resolved.id, { x, y, width, height });
 
@@ -1001,7 +1638,7 @@ export class TemplateRenderer {
       frameDelta?: number;
       pastColor?: string;
       futureColor?: string;
-    } = {}
+    } = {},
   ): void {
     const frameCount = options.frameCount ?? 2;
     const delta = options.frameDelta ?? 0.066; // approx 2 frames at 30fps
