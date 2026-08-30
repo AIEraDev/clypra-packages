@@ -10,6 +10,7 @@ import {
   type TemplateTiming,
   type TextTemplateArtifact,
   type TextTemplateDocument,
+  type TemplatePropertyKeyframes,
 } from "./contract.js";
 
 function clone<T>(value: T): T {
@@ -75,13 +76,33 @@ function resolveDimension(raw: unknown, fallback: number): number | "auto" {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function propertyKeyframes(layer: any): TemplatePropertyKeyframes | undefined {
+  const result: TemplatePropertyKeyframes = {};
+  for (const property of ["x", "y", "width", "height", "opacity", "fontSize", "fontWeight", "letterSpacing"]) {
+    const value = layer?.[property];
+    if (value && typeof value === "object" && Array.isArray(value.keyframes) && value.keyframes.length > 0) {
+      result[property] = { keyframes: clone(value.keyframes) };
+    }
+  }
+  return Object.keys(result).length ? result : undefined;
+}
+
+function nodeAnimation(layer: any): any {
+  const propertyFrames = propertyKeyframes(layer);
+  if (!propertyFrames) return layer?.animation;
+  return {
+    ...(layer?.animation || { in: "none", out: "none", inDuration: 0, outDuration: 0, hold: "full" }),
+    propertyKeyframes: propertyFrames,
+  };
+}
+
 function legacyLayerToNode(layer: any, index: number): TemplateNode {
   const id = String(layer?.id || `${layer?.kind || "node"}-${index + 1}`);
   const x = resolveNumericProperty(layer?.x ?? layer?.relativePosition?.x, 0);
   const y = resolveNumericProperty(layer?.y ?? layer?.relativePosition?.y, 0);
   const width = resolveDimension(layer?.width, 400);
   const height = resolveDimension(layer?.height, 120);
-  const animation = layer?.animation;
+  const animation = nodeAnimation(layer);
   const anchor = layer?.anchor;
   const parentId = layer?.parentId;
   const visible = layer?.visible !== false;
@@ -306,7 +327,10 @@ function legacyLayerToNode(layer: any, index: number): TemplateNode {
       : undefined,
     splitAnimator: text?.splitAnimator ? clone(text.splitAnimator) : undefined,
     textEffectRef: text?.styleRef ? clone(text.styleRef) : undefined,
-  };
+    // Kept as optional metadata for compatibility with role-based editor
+    // customizations. The canonical renderer does not depend on roles.
+    ...(layer?.role ? { role: String(layer.role) } : {}),
+  } as TemplateNode;
 }
 
 function inferControls(nodes: TemplateNode[]): TemplateControl[] {
