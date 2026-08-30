@@ -271,4 +271,121 @@ describe("TemplateRenderer", () => {
     const renderer = new TemplateRenderer(template);
     expect(() => renderer.drawFrame(ctx, 1.5)).not.toThrow();
   });
+
+  it("renders kinetic splitAnimator with character stagger transforms without error", () => {
+    const canvas = createCanvas(800, 600);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+
+    const template: TextTemplate = {
+      ...mockTemplate,
+      layers: [
+        {
+          kind: "text",
+          id: "kinetic-text",
+          content: "KINETIC",
+          fontFamily: "Arial",
+          fontSize: 48,
+          color: "#ffffff",
+          align: "center",
+          x: 100,
+          y: 100,
+          width: 600,
+          height: 100,
+          animation: { in: "scale-pop", out: "fade", inDuration: 1.0, outDuration: 0.5, hold: "full" },
+          splitAnimator: {
+            splitBy: "character",
+            direction: "start-to-end",
+            delayPerUnit: 0.05,
+            overlap: 0.5,
+            initialTransform: { y: 30, opacity: 0, scale: 0.5, rotation: 15, blur: 4 },
+            easing: "cubic-bezier",
+            bezier: { x1: 0.2, y1: 0.8, x2: 0.2, y2: 1.0 },
+          },
+        },
+      ],
+    };
+
+    const renderer = new TemplateRenderer(template);
+    expect(() => renderer.drawFrame(ctx, 0.2)).not.toThrow();
+    expect(() => renderer.drawFrame(ctx, 0.8)).not.toThrow();
+    expect(() => renderer.drawFrame(ctx, 1.5)).not.toThrow();
+  });
+
+  it("resolves dynamic variable expressions in content", () => {
+    const canvas = createCanvas(800, 600);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+
+    const template: TextTemplate = {
+      ...mockTemplate,
+      variables: {
+        speaker: { key: "speaker", label: "Speaker", type: "string", defaultValue: "Alex Rivers" },
+      },
+      layers: [
+        {
+          kind: "text",
+          id: "var-text",
+          content: "Welcome, {{speaker}}!",
+          fontFamily: "Arial",
+          fontSize: 24,
+          color: "#ffffff",
+          align: "left",
+          x: 50,
+          y: 50,
+          width: 300,
+          height: 50,
+          animation: { in: "fade", out: "fade", inDuration: 0.5, outDuration: 0.5, hold: "full" },
+        },
+      ],
+    };
+
+    const renderer = new TemplateRenderer(template);
+    expect(() => renderer.drawFrame(ctx, 1.0)).not.toThrow();
+  });
+
+  it("applies responsive 9-point spatial anchor positioning", () => {
+    const canvas = createCanvas(1920, 1080);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+
+    const template: TextTemplate = {
+      ...mockTemplate,
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      layers: [
+        {
+          kind: "text",
+          id: "bottom-left-badge",
+          content: "Lower Third",
+          fontFamily: "Arial",
+          fontSize: 28,
+          color: "#ffffff",
+          align: "left",
+          x: 0,
+          y: 0,
+          width: 250,
+          height: 60,
+          animation: { in: "fade", out: "fade", inDuration: 0.5, outDuration: 0.5, hold: "full" },
+          anchor: {
+            anchorPoint: "bottom-left",
+            offsetPercentageX: 5,
+            offsetPercentageY: 8,
+          },
+        },
+      ],
+    };
+
+    const renderer = new TemplateRenderer(template);
+    renderer.drawFrame(ctx, 1.0);
+    const layout = renderer.getLayerLayout("bottom-left-badge");
+    expect(layout).toBeDefined();
+    expect(layout?.x).toBeCloseTo(1920 * 0.05, 0);
+    expect(layout?.y).toBeCloseTo(1080 - 60 - 1080 * 0.08, 0);
+  });
+
+  it("renders onion-skin multi-frame ghosting without errors", () => {
+    const canvas = createCanvas(800, 600);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+
+    const renderer = new TemplateRenderer(mockTemplate);
+    expect(() => renderer.drawOnionSkin(ctx, 1.5, { frameCount: 2, frameDelta: 0.05 })).not.toThrow();
+  });
 });

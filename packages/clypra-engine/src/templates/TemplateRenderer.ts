@@ -1,27 +1,13 @@
-import { TextTemplate, TemplateLayer, TemplateTextLayer, TemplateShapeLayer, TemplateImageLayer } from "../types";
-import { evaluateAnimatable } from "./keyframes";
+import { TextTemplate, TemplateLayer, TemplateTextLayer, TemplateShapeLayer, TemplateImageLayer, TemplateContainerLayer } from "../types";
+import { evaluateAnimatable, cubicBezier } from "./keyframes";
 import { wrapTextToWidth } from "../engine/textLayout";
 import { resolveFontFamilyName } from "../engine/migrate";
 import { evaluateTextTemplate, type RenderPlan, normalizeTextTemplate } from "../contracts";
 import { evaluateScene } from "../engine/evaluate";
+import { splitTextContent, evaluateSplitTextTransforms, getSpanForCharIndex, SplitUnit } from "./textSplitter";
+import { resolveAnchorPosition } from "./responsiveLayout";
 
-// Newton-Raphson approximation solver for cubic bezier curve easing
-export function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
-  return function (t: number): number {
-    if (t <= 0) return 0;
-    if (t >= 1) return 1;
-
-    let tApprox = t;
-    for (let i = 0; i < 8; i++) {
-      const x = 3 * (1 - tApprox) * (1 - tApprox) * tApprox * x1 + 3 * (1 - tApprox) * tApprox * tApprox * x2 + tApprox * tApprox * tApprox;
-      const slope = 3 * (1 - tApprox) * (1 - tApprox) * x1 + 6 * (1 - tApprox) * tApprox * (x2 - x1) + 3 * tApprox * tApprox * (1 - x2);
-      if (Math.abs(slope) < 1e-6) break;
-      tApprox -= (x - t) / slope;
-    }
-
-    return 3 * (1 - tApprox) * (1 - tApprox) * tApprox * y1 + 3 * (1 - tApprox) * tApprox * tApprox * y2 + tApprox * tApprox * tApprox;
-  };
-}
+export { cubicBezier };
 
 export interface AnimationState {
   opacity: number;
@@ -30,6 +16,7 @@ export interface AnimationState {
   scale: number;
   blur: number;
   typewriterProgress: number;
+  letterSpacingOffset?: number;
 }
 
 export class TemplateRenderer {
@@ -38,6 +25,7 @@ export class TemplateRenderer {
   private imageCache = new Map<string, any>(); // cache loaded images to prevent flickering
   private currentTime: number = 0; // Track current time for keyframe evaluation
   private lastLayerLayouts = new Map<string, { x: number; y: number; width: number; height: number }>();
+  private computedFlexLayouts = new Map<string, { x: number; y: number; width: number; height: number }>();
 
   constructor(template: TextTemplate) {
     this.template = normalizeTextTemplate(template) as TextTemplate;
@@ -146,12 +134,47 @@ export class TemplateRenderer {
       case "typewriter":
         typewriterProgress = p;
         break;
+      case "3d-flip":
+        opacity = p;
+        scale = 0.6 + p * 0.4;
+        y = (1 - p) * 25;
+        break;
+      case "scale-pop":
+        opacity = p;
+        scale = p < 0.7 ? (p / 0.7) * 1.15 : 1.15 - ((p - 0.7) / 0.3) * 0.15;
+        break;
+      case "track-in":
+        opacity = p;
+        blur = (1 - p) * 8;
+        break;
+      case "wave":
+        opacity = p;
+        y = Math.sin(p * Math.PI) * -15;
+        break;
+      case "glitch":
+        opacity = p > 0.05 ? 1 : 0;
+        x = Math.sin(p * 25) * 6 * (1 - p);
+        break;
       case "none":
       default:
         break;
     }
 
     return { opacity, x, y, scale, blur, typewriterProgress };
+  }
+
+  /** Resolve dynamic {{variable}} tokens in string content */
+  private resolveDynamicContent(rawContent: string): string {
+    if (!rawContent || !rawContent.includes("{{")) return rawContent;
+    const vars = this.template.variables || {};
+    return rawContent.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+      const trimmed = key.trim();
+      const override = (this.template as any).variableValues?.[trimmed];
+      if (override !== undefined) return String(override);
+      const def = vars[trimmed];
+      if (def && def.defaultValue !== undefined) return String(def.defaultValue);
+      return `{{${trimmed}}}`;
+    });
   }
 
   drawFrame(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, time: number, fitToContentOrOpts: boolean | { fitToContent?: boolean; skipClear?: boolean } = false): void {
@@ -215,6 +238,7 @@ export class TemplateRenderer {
     for (const [layerId, layout] of this.lastLayerLayouts.entries()) {
       // Find the layer to check its kind
       const layer = this.template?.layers?.find((l) => l.id === layerId);
+      if (layer && layer.visible === false) continue;
 
       // Only include text layers in content bounds
       if (layer && layer.kind === "text") {
@@ -246,12 +270,247 @@ export class TemplateRenderer {
     };
   }
 
+  private computeFlexLayouts(time: number): void {
+    this.computedFlexLayouts.clear();
+    if (!this.template || !Array.isArray(this.template.layers)) return;
+
+    const layers = this.template.layers.map((l) => this.resolveLayer(l));
+    const containers = layers.filter((l) => l.kind === "container") as TemplateContainerLayer[];
+    if (containers.length === 0) return;
+
+    // Measure intrinsic bounds for non-container layers
+    const measuredBounds = new Map<string, { width: number; height: number }>();
+
+    for (const layer of layers) {
+      if (layer.kind === "text") {
+        const textLayer = layer as TemplateTextLayer;
+        const rawW = this.evaluateTextDimension(textLayer, "width");
+        const rawH = this.evaluateTextDimension(textLayer, "height");
+        const fontSize = Number(evaluateAnimatable(textLayer.fontSize, this.currentTime, this.template.duration)) || 48;
+        const fontWeight = evaluateAnimatable(textLayer.fontWeight, this.currentTime, this.template.duration) || 400;
+        const rawFontFamily = textLayer.fontFamily || "Space Grotesk";
+        const fontFamily = resolveFontFamilyName(rawFontFamily);
+        const legacyPad = Number(evaluateAnimatable(textLayer.padding ?? 0, this.currentTime, this.template.duration)) || 0;
+        const padL = Number(evaluateAnimatable(textLayer.paddingLeft ?? legacyPad, this.currentTime, this.template.duration)) || 0;
+        const padR = Number(evaluateAnimatable(textLayer.paddingRight ?? legacyPad, this.currentTime, this.template.duration)) || 0;
+        const padT = Number(evaluateAnimatable(textLayer.paddingTop ?? legacyPad, this.currentTime, this.template.duration)) || 0;
+        const padB = Number(evaluateAnimatable(textLayer.paddingBottom ?? legacyPad, this.currentTime, this.template.duration)) || 0;
+        const text = this.resolveDynamicContent(textLayer.content || "");
+        const lines = text.split("\n");
+
+        let textW = 0;
+        if (typeof document !== "undefined") {
+          const mCanvas = document.createElement("canvas");
+          const mCtx = mCanvas.getContext("2d");
+          if (mCtx) {
+            mCtx.font = `${fontWeight} ${fontSize}px "${fontFamily}", "${rawFontFamily}", sans-serif`;
+            textW = Math.max(...lines.map((l) => mCtx.measureText(l || "Ag").width), 20);
+          }
+        }
+        if (!textW) {
+          const charFactor = Number(fontWeight) >= 600 ? 0.72 : 0.65;
+          textW = Math.max(...lines.map((l) => l.length * fontSize * charFactor), 20);
+        }
+
+        const textH = lines.length === 1 ? fontSize * 1.2 : lines.length * fontSize * 1.25;
+        const isAutoOrBox = rawW === "auto" || textLayer.overflow === "expand-panel" || (textLayer.backgroundColor !== undefined && textLayer.backgroundColor !== null);
+
+        const w = isAutoOrBox ? textW + padL + padR : Number(rawW);
+        const h = rawH === "auto" ? textH + padT + padB : Number(rawH);
+        measuredBounds.set(layer.id, { width: w, height: h });
+      } else if (layer.kind === "shape" || layer.kind === "image") {
+        const w = Number(evaluateAnimatable((layer as any).width, this.currentTime, this.template.duration)) || 100;
+        const h = Number(evaluateAnimatable((layer as any).height, this.currentTime, this.template.duration)) || 100;
+        measuredBounds.set(layer.id, { width: w, height: h });
+      }
+    }
+
+    for (const container of containers) {
+      const children = layers.filter((l) => l.parentId === container.id && l.visible !== false);
+      const layout = container.layout || { type: "flex", direction: "column", gap: 0, alignItems: "start", justifyContent: "start" };
+      const direction = layout.direction || "column";
+      const gap = Number(evaluateAnimatable(layout.gap, this.currentTime, this.template.duration)) || 0;
+      const padTop = Number(evaluateAnimatable(layout.paddingTop, this.currentTime, this.template.duration)) || 0;
+      const padRight = Number(evaluateAnimatable(layout.paddingRight, this.currentTime, this.template.duration)) || 0;
+      const padBottom = Number(evaluateAnimatable(layout.paddingBottom, this.currentTime, this.template.duration)) || 0;
+      const padLeft = Number(evaluateAnimatable(layout.paddingLeft, this.currentTime, this.template.duration)) || 0;
+      const alignItems = layout.alignItems || "center";
+
+      const containerX = Number(evaluateAnimatable(container.x, this.currentTime, this.template.duration)) || 0;
+      const containerY = Number(evaluateAnimatable(container.y, this.currentTime, this.template.duration)) || 0;
+
+      if (direction === "column") {
+        let totalChildHeight = 0;
+        let maxChildWidth = 0;
+        const childSizes: { id: string; width: number; height: number }[] = [];
+
+        for (const child of children) {
+          const sz = measuredBounds.get(child.id) || { width: 100, height: 50 };
+          childSizes.push({ id: child.id, width: sz.width, height: sz.height });
+          totalChildHeight += sz.height;
+          maxChildWidth = Math.max(maxChildWidth, sz.width);
+        }
+        if (children.length > 1) {
+          totalChildHeight += (children.length - 1) * gap;
+        }
+
+        const rawContainerW = container.width;
+        const rawContainerH = container.height;
+        const declaredW = (rawContainerW === "auto" || !rawContainerW)
+          ? 0
+          : (Number(evaluateAnimatable(rawContainerW, this.currentTime, this.template.duration)) || 0);
+        const declaredH = (rawContainerH === "auto" || !rawContainerH)
+          ? 0
+          : (Number(evaluateAnimatable(rawContainerH, this.currentTime, this.template.duration)) || 0);
+
+        // Container dynamically hugs all child bounds with full padding (with declared size acting as minimum if set)
+        const containerW = Math.max(declaredW, maxChildWidth + padLeft + padRight);
+        const containerH = Math.max(declaredH, totalChildHeight + padTop + padBottom);
+
+        this.computedFlexLayouts.set(container.id, { x: containerX, y: containerY, width: containerW, height: containerH });
+
+        let currentY = containerY + padTop;
+        const innerW = Math.max(0, containerW - padLeft - padRight);
+
+        for (const child of childSizes) {
+          let childW = child.width;
+
+          let childX = containerX + padLeft;
+          if (alignItems === "center") {
+            childX = containerX + padLeft + (innerW - childW) / 2;
+          } else if (alignItems === "end") {
+            childX = containerX + padLeft + (innerW - childW);
+          } else if (alignItems === "stretch") {
+            childW = innerW;
+          }
+
+          this.computedFlexLayouts.set(child.id, {
+            x: childX,
+            y: currentY,
+            width: childW,
+            height: child.height,
+          });
+
+          currentY += child.height + gap;
+        }
+      } else {
+        // Row direction
+        let totalChildWidth = 0;
+        let maxChildHeight = 0;
+        const childSizes: { id: string; width: number; height: number }[] = [];
+
+        for (const child of children) {
+          const sz = measuredBounds.get(child.id) || { width: 100, height: 50 };
+          childSizes.push({ id: child.id, width: sz.width, height: sz.height });
+          totalChildWidth += sz.width;
+          maxChildHeight = Math.max(maxChildHeight, sz.height);
+        }
+        if (children.length > 1) {
+          totalChildWidth += (children.length - 1) * gap;
+        }
+
+        const rawContainerW = container.width;
+        const rawContainerH = container.height;
+        const declaredW = (rawContainerW === "auto" || !rawContainerW)
+          ? 0
+          : (Number(evaluateAnimatable(rawContainerW, this.currentTime, this.template.duration)) || 0);
+        const declaredH = (rawContainerH === "auto" || !rawContainerH)
+          ? 0
+          : (Number(evaluateAnimatable(rawContainerH, this.currentTime, this.template.duration)) || 0);
+
+        const containerW = Math.max(declaredW, totalChildWidth + padLeft + padRight);
+        const containerH = Math.max(declaredH, maxChildHeight + padTop + padBottom);
+
+        this.computedFlexLayouts.set(container.id, { x: containerX, y: containerY, width: containerW, height: containerH });
+
+        let currentX = containerX + padLeft;
+        const innerH = Math.max(0, containerH - padTop - padBottom);
+
+        for (const child of childSizes) {
+          let childH = child.height;
+          let childY = containerY + padTop;
+          if (alignItems === "center") {
+            childY = containerY + padTop + (innerH - childH) / 2;
+          } else if (alignItems === "end") {
+            childY = containerY + padTop + (innerH - childH);
+          } else if (alignItems === "stretch") {
+            childH = innerH;
+          }
+
+          this.computedFlexLayouts.set(child.id, {
+            x: currentX,
+            y: childY,
+            width: child.width,
+            height: childH,
+          });
+
+          currentX += child.width + gap;
+        }
+      }
+    }
+  }
+
+  private drawContainerLayer(ctx: CanvasRenderingContext2D, layer: TemplateContainerLayer): void {
+    const resolved = layer;
+    const layout = this.computedFlexLayouts.get(resolved.id);
+    const x = layout?.x ?? (Number(evaluateAnimatable(resolved.x, this.currentTime, this.template.duration)) || 0);
+    const y = layout?.y ?? (Number(evaluateAnimatable(resolved.y, this.currentTime, this.template.duration)) || 0);
+    const width = layout?.width ?? (resolved.width === "auto" ? 400 : (Number(evaluateAnimatable(resolved.width, this.currentTime, this.template.duration)) || 400));
+    const height = layout?.height ?? (resolved.height === "auto" ? 200 : (Number(evaluateAnimatable(resolved.height, this.currentTime, this.template.duration)) || 200));
+
+    this.lastLayerLayouts.set(resolved.id, { x, y, width, height });
+
+    const bgColor = resolved.backgroundColor ? evaluateAnimatable(resolved.backgroundColor, this.currentTime, this.template.duration) : null;
+    const bgOpacity = resolved.backgroundOpacity !== undefined ? Number(evaluateAnimatable(resolved.backgroundOpacity, this.currentTime, this.template.duration)) : 1;
+    const bgRadius = resolved.backgroundRadius !== undefined ? Number(evaluateAnimatable(resolved.backgroundRadius, this.currentTime, this.template.duration)) : 0;
+    const borderColor = resolved.backgroundBorderColor ? evaluateAnimatable(resolved.backgroundBorderColor, this.currentTime, this.template.duration) : null;
+    const borderWidth = resolved.backgroundBorderWidth !== undefined ? Number(evaluateAnimatable(resolved.backgroundBorderWidth, this.currentTime, this.template.duration)) : 0;
+
+    if (bgColor || (borderColor && borderWidth > 0)) {
+      const currentAlpha = ctx.globalAlpha;
+      ctx.save();
+      ctx.globalAlpha = currentAlpha * bgOpacity;
+
+      ctx.beginPath();
+      if (bgRadius > 0) {
+        ctx.moveTo(x + bgRadius, y);
+        ctx.lineTo(x + width - bgRadius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + bgRadius);
+        ctx.lineTo(x + width, y + height - bgRadius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - bgRadius, y + height);
+        ctx.lineTo(x + bgRadius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - bgRadius);
+        ctx.lineTo(x, y + bgRadius);
+        ctx.quadraticCurveTo(x, y, x + bgRadius, y);
+      } else {
+        ctx.rect(x, y, width, height);
+      }
+      ctx.closePath();
+
+      if (bgColor) {
+        ctx.fillStyle = bgColor;
+        ctx.fill();
+      }
+
+      if (borderColor && borderWidth > 0) {
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = borderWidth;
+        ctx.globalAlpha = currentAlpha;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  }
+
   private drawLayers(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, time: number): void {
     if (!this.template || !Array.isArray(this.template.layers)) return;
     this.lastLayerLayouts.clear();
+    this.computeFlexLayouts(time);
 
     for (const layer of this.template.layers) {
       const resolved = this.resolveLayer(layer);
+      if (resolved.visible === false) continue;
       const transform = this.computeTransform(resolved, time);
 
       // Evaluate layer opacity
@@ -261,26 +520,23 @@ export class TemplateRenderer {
       ctx.globalAlpha = transform.opacity * layerOpacity; // Combine animation and layer opacity
 
       // Evaluate position and size for transform center calculation.
-      // For text layers with "auto" dimensions we don't know the true size until after
-      // font measurement inside drawTextLayer, so we use the layer origin (x, y) as the
-      // scale pivot. This is acceptable because auto-sized layers are typically non-animated
-      // (they don't have scale animations). Numeric dimensions work as before.
-      const x = this.evaluateLayerProperty(resolved, "x");
-      const y = this.evaluateLayerProperty(resolved, "y");
+      const flexLayout = this.computedFlexLayouts.get(resolved.id);
+      const x = flexLayout?.x ?? this.evaluateLayerProperty(resolved, "x");
+      const y = flexLayout?.y ?? this.evaluateLayerProperty(resolved, "y");
 
       let cx: number;
       let cy: number;
 
       if (resolved.kind === "text") {
         const textLayer = resolved as TemplateTextLayer;
-        const rawW = this.evaluateTextDimension(textLayer, "width");
-        const rawH = this.evaluateTextDimension(textLayer, "height");
+        const rawW = flexLayout?.width ?? this.evaluateTextDimension(textLayer, "width");
+        const rawH = flexLayout?.height ?? this.evaluateTextDimension(textLayer, "height");
         // For auto dims use the layer origin as pivot (scale from top-left corner).
         cx = rawW === "auto" ? x : x + (rawW as number) / 2;
         cy = rawH === "auto" ? y : y + (rawH as number) / 2;
       } else {
-        const width = evaluateAnimatable((resolved as any).width, this.currentTime, this.template.duration) as number;
-        const height = evaluateAnimatable((resolved as any).height, this.currentTime, this.template.duration) as number;
+        const width = flexLayout?.width ?? (evaluateAnimatable((resolved as any).width, this.currentTime, this.template.duration) as number);
+        const height = flexLayout?.height ?? (evaluateAnimatable((resolved as any).height, this.currentTime, this.template.duration) as number);
         cx = x + width / 2;
         cy = y + height / 2;
       }
@@ -301,6 +557,8 @@ export class TemplateRenderer {
         this.drawShapeLayer(ctx as CanvasRenderingContext2D, resolved as TemplateShapeLayer);
       } else if (resolved.kind === "image") {
         this.drawImageLayer(ctx as CanvasRenderingContext2D, resolved as TemplateImageLayer);
+      } else if (resolved.kind === "container") {
+        this.drawContainerLayer(ctx as CanvasRenderingContext2D, resolved as TemplateContainerLayer);
       }
 
       ctx.restore();
@@ -309,21 +567,23 @@ export class TemplateRenderer {
 
   private drawTextLayer(ctx: CanvasRenderingContext2D, layer: TemplateTextLayer, transform: AnimationState): void {
     const resolved = layer;
+    // Resolve dynamic variables in text content
+    const rawContent = resolved.content;
+    const content = this.resolveDynamicContent(rawContent);
 
-    // Evaluate all animatable properties at current time
-    const content = resolved.content;
     const rawFontFamily = resolved.fontFamily;
     const fontFamily = resolveFontFamilyName(rawFontFamily);
     const fontSize = evaluateAnimatable(resolved.fontSize, this.currentTime, this.template.duration);
     const fontWeight = evaluateAnimatable(resolved.fontWeight, this.currentTime, this.template.duration);
     const color = evaluateAnimatable(resolved.color, this.currentTime, this.template.duration);
     const align = resolved.align;
-    const x = evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
-    const y = evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
+    const flexLayout = this.computedFlexLayouts.get(resolved.id);
+    const x = flexLayout?.x ?? evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
+    const y = flexLayout?.y ?? evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
 
     // width / height may be "auto" — defer resolution until after ctx.font is set.
-    const rawWidth = this.evaluateTextDimension(resolved, "width");
-    const rawHeight = this.evaluateTextDimension(resolved, "height");
+    const rawWidth = flexLayout?.width ?? this.evaluateTextDimension(resolved, "width");
+    const rawHeight = flexLayout?.height ?? this.evaluateTextDimension(resolved, "height");
 
     // Evaluate background properties if present
     const backgroundColor = resolved.backgroundColor ? evaluateAnimatable(resolved.backgroundColor, this.currentTime, this.template.duration) : null;
@@ -348,50 +608,32 @@ export class TemplateRenderer {
 
     ctx.save();
     ctx.font = `${fontWeight} ${fontSize}px "${fontFamily}", "${rawFontFamily}", sans-serif`;
-    // Always use alphabetic baseline — we position manually using real font metrics
-    // so we never double-account the baseline shift.
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = align;
 
     // ── Resolve "auto" dimensions after ctx.font is set so measureText is accurate ──
-    //
-    // For a width-auto layer the panel grows to exactly fit the text horizontally.
-    // For a height-auto layer the panel grows to exactly fit the ink vertically
-    // (across all wrapped lines when overflow === "wrap").
-    //
-    // The sentinel value -1 is used internally only; it is never exposed to callers.
-
     let adjustedFontSize = fontSize;
     let lines = [textToDraw];
 
-    // ── Step 1: wrap lines (needed to know height-auto value for wrapped text) ──
-    // We may need to wrap before we can resolve height. But wrapping itself needs
-    // contentW, which needs width. So: resolve width first, then wrap, then height.
-
-    // Resolve width first (may need measurement)
+    const measuredTextWidth = ctx.measureText(textToDraw || "Ag").width;
     let resolvedWidth: number;
-    if (rawWidth === "auto") {
-      // Measure the text at the current font to derive panel width.
-      const measured = ctx.measureText(textToDraw || "Ag").width;
-      resolvedWidth = measured + pl + pr;
+    if (rawWidth === "auto" || overflow === "expand-panel" || (backgroundColor && (rawWidth === "auto" || !rawWidth))) {
+      resolvedWidth = measuredTextWidth + pl + pr;
+    } else if (flexLayout) {
+      resolvedWidth = (overflow === "shrink" || overflow === "wrap")
+        ? (flexLayout.width)
+        : Math.max(flexLayout.width, measuredTextWidth + pl + pr);
     } else {
       resolvedWidth = rawWidth as number;
     }
 
-    // Content width is now known
     const contentW = Math.max(0, resolvedWidth - pl - pr);
 
-    // ── Step 2: handle overflow strategies that affect line count / font size ──
     if (overflow === "shrink") {
-      // Shrink font to fit inside the content area in BOTH dimensions.
-      // 1. Fit to width first.
-      const measuredWidth = ctx.measureText(textToDraw).width;
-      let scale = measuredWidth > contentW && contentW > 0 ? contentW / measuredWidth : 1;
-      // 2. Also fit to height (single-line: inkLineH ≈ fontSize).
-      // If height is auto, shrink is a no-op in the vertical axis.
+      let scale = measuredTextWidth > contentW && contentW > 0 ? contentW / measuredTextWidth : 1;
       if (rawHeight !== "auto") {
         const declaredContentH = Math.max(0, (rawHeight as number) - pt - pb);
-        const singleLineH = fontSize * 1.0; // approximate ink height before measure
+        const singleLineH = fontSize * 1.0;
         if (singleLineH * scale > declaredContentH && declaredContentH > 0) {
           scale = Math.min(scale, declaredContentH / singleLineH);
         }
@@ -401,19 +643,13 @@ export class TemplateRenderer {
         ctx.font = `${fontWeight} ${adjustedFontSize}px "${fontFamily}", "${rawFontFamily}", sans-serif`;
       }
     } else if (overflow === "wrap") {
-      // Wrap text to content width; height may grow to fit (if height is "auto").
       lines = wrapTextToWidth(ctx, textToDraw, contentW, 0);
     } else if (overflow === "expand-panel") {
-      // expand-panel: width grows to text + padding (same as width:"auto" but via overflow).
-      // If width was already "auto" this is essentially the same result.
-      const measuredWidth = ctx.measureText(textToDraw).width;
-      resolvedWidth = measuredWidth + pl + pr;
+      resolvedWidth = measuredTextWidth + pl + pr;
     }
 
-    // ── Step 3: resolve height (may depend on wrapped line count) ──
     let resolvedHeight: number;
     if (rawHeight === "auto") {
-      // Measure real font metrics if available, otherwise approximate.
       const sampleMetrics = ctx.measureText(lines[0] || "Ag");
       const ascent = sampleMetrics.actualBoundingBoxAscent ?? adjustedFontSize * 0.8;
       const descent = sampleMetrics.actualBoundingBoxDescent ?? adjustedFontSize * 0.2;
@@ -425,20 +661,13 @@ export class TemplateRenderer {
       resolvedHeight = rawHeight as number;
     }
 
-    // ── BORDER-BOX: panel occupies exactly the resolved layer bounds ──────────
-    // Padding shrinks the text content area inward — it does NOT expand the panel.
-    // Exception: expand-panel (and auto width) grows the panel itself to fit the text.
     let bgX = x;
     let bgY = y;
     let bgWidth = resolvedWidth;
     let bgHeight = resolvedHeight;
 
-    // For expand-panel / auto-width with centered/right alignment, anchor the panel
-    // on the original x reference point (same behaviour as expand-panel always had).
     if (overflow === "expand-panel" || rawWidth === "auto") {
       if (align === "center") {
-        // x is treated as the horizontal centre of the declared slot.
-        // For auto, x is just the left origin, so anchor on x directly.
         bgX = rawWidth === "auto" ? x : x + (rawWidth as number) / 2 - bgWidth / 2;
       } else if (align === "right") {
         bgX = rawWidth === "auto" ? x : x + (rawWidth as number) - bgWidth;
@@ -447,10 +676,23 @@ export class TemplateRenderer {
       }
     }
 
+    // Apply Responsive 9-point spatial anchor if configured
+    if (resolved.anchor) {
+      const anchored = resolveAnchorPosition(
+        resolved.anchor,
+        { x: bgX, y: bgY, width: bgWidth, height: bgHeight },
+        this.template.canvasWidth,
+        this.template.canvasHeight
+      );
+      bgX = anchored.x;
+      bgY = anchored.y;
+      bgWidth = anchored.width;
+      bgHeight = anchored.height;
+    }
+
     this.lastLayerLayouts.set(resolved.id, { x: bgX, y: bgY, width: bgWidth, height: bgHeight });
 
-    // A pinned effect owns its own bleed (glow/shadow/stroke). Render it before
-    // the template overflow clip so those pixels are not incorrectly cut off.
+    // A pinned effect owns its own bleed (glow/shadow/stroke).
     const styleRef = (resolved as any).styleRef;
     if (styleRef?.snapshot?.effectLayers) {
       const effectCanvas = typeof OffscreenCanvas !== "undefined"
@@ -484,31 +726,29 @@ export class TemplateRenderer {
     let contentY = bgY + pt;
     let contentH = Math.max(0, bgHeight - pt - pb);
 
-    // ── Always clip to panel bounds ─────────────────────────────────────────
-    // Every overflow strategy (clip, shrink, wrap, expand-panel) must respect
-    // the panel rectangle as a hard boundary. Text must never visually escape
-    // the panel regardless of content length or font size.
-    // For expand-panel, bgWidth/bgX have already been grown to fit the text,
-    // so clipping to those grown bounds is still correct (no visible clipping).
-    ctx.save(); // clip save — restored after text drawing
-    ctx.beginPath();
-    if (backgroundRadius > 0) {
-      ctx.moveTo(bgX + backgroundRadius, bgY);
-      ctx.lineTo(bgX + bgWidth - backgroundRadius, bgY);
-      ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + backgroundRadius);
-      ctx.lineTo(bgX + bgWidth, bgY + bgHeight - backgroundRadius);
-      ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - backgroundRadius, bgY + bgHeight);
-      ctx.lineTo(bgX + backgroundRadius, bgY + bgHeight);
-      ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - backgroundRadius);
-      ctx.lineTo(bgX, bgY + backgroundRadius);
-      ctx.quadraticCurveTo(bgX, bgY, bgX + backgroundRadius, bgY);
-    } else {
-      ctx.rect(bgX, bgY, bgWidth, bgHeight);
-    }
-    ctx.closePath();
-    ctx.clip();
+    ctx.save();
 
-    // Draw background panel if backgroundColor is set
+    // Explicit clip only if overflow === 'clip'
+    if (overflow === "clip") {
+      ctx.beginPath();
+      if (backgroundRadius > 0) {
+        ctx.moveTo(bgX + backgroundRadius, bgY);
+        ctx.lineTo(bgX + bgWidth - backgroundRadius, bgY);
+        ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + backgroundRadius);
+        ctx.lineTo(bgX + bgWidth, bgY + bgHeight - backgroundRadius);
+        ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - backgroundRadius, bgY + bgHeight);
+        ctx.lineTo(bgX + backgroundRadius, bgY + bgHeight);
+        ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - backgroundRadius);
+        ctx.lineTo(bgX, bgY + backgroundRadius);
+        ctx.quadraticCurveTo(bgX, bgY, bgX + backgroundRadius, bgY);
+      } else {
+        ctx.rect(bgX, bgY, bgWidth, bgHeight);
+      }
+      ctx.closePath();
+      ctx.clip();
+    }
+
+    // Draw background panel
     if (backgroundColor) {
       const currentAlpha = ctx.globalAlpha;
       ctx.save();
@@ -551,7 +791,6 @@ export class TemplateRenderer {
     // ── Render text inside the content area ────────────────────────────────
     ctx.fillStyle = color;
 
-    // Horizontal anchor inside content area
     let drawX: number;
     if (align === "center") {
       drawX = contentX + contentW / 2;
@@ -561,43 +800,123 @@ export class TemplateRenderer {
       drawX = contentX;
     }
 
-    // Measure real ascent for the current font so we can anchor ink precisely.
     const sampleMetrics = ctx.measureText(lines[0] || "Ag");
     const ascent = sampleMetrics.actualBoundingBoxAscent ?? adjustedFontSize * 0.8;
     const descent = sampleMetrics.actualBoundingBoxDescent ?? adjustedFontSize * 0.2;
     const inkLineH = ascent + descent;
     const lineHeight = adjustedFontSize * 1.2;
 
-    if (overflow === "wrap") {
-      const totalInkHeight = inkLineH + (lines.length - 1) * lineHeight;
-      let firstBaselineY: number;
-      if (verticalAlign === "top") {
-        firstBaselineY = contentY + ascent;
-      } else if (verticalAlign === "bottom") {
-        firstBaselineY = contentY + contentH - totalInkHeight + ascent;
-      } else {
-        // middle
-        firstBaselineY = contentY + (contentH - totalInkHeight) / 2 + ascent;
+    // ── Check if Kinetic Text Splitting is active on this layer ─────────────
+    if (resolved.splitAnimator) {
+      const inEnd = resolved.animation.inDuration;
+      const animProgress = inEnd > 0 ? Math.min(1, Math.max(0, this.currentTime / inEnd)) : 1;
+      const splitUnits = splitTextContent(textToDraw, resolved.splitAnimator.splitBy);
+      const computedUnits = evaluateSplitTextTransforms(splitUnits, resolved.splitAnimator, animProgress, "in");
+
+      let currentX = drawX;
+      if (align === "center") {
+        const fullW = ctx.measureText(textToDraw).width;
+        currentX = contentX + (contentW - fullW) / 2;
+      } else if (align === "right") {
+        const fullW = ctx.measureText(textToDraw).width;
+        currentX = contentX + contentW - fullW;
       }
-      lines.forEach((line, index) => {
-        ctx.fillText(line, drawX, firstBaselineY + index * lineHeight);
+
+      const drawY = verticalAlign === "top" ? contentY + ascent : verticalAlign === "bottom" ? contentY + contentH - descent : contentY + (contentH - inkLineH) / 2 + ascent;
+
+      computedUnits.forEach((item, unitIdx) => {
+        const span = getSpanForCharIndex(resolved.spans, item.unit.charStartIndex);
+        const charColor = resolved.perCharFillEnabled && resolved.charFillColors?.[unitIdx]
+          ? resolved.charFillColors[unitIdx]
+          : span?.color || color;
+
+        ctx.save();
+        ctx.globalAlpha = ctx.globalAlpha * item.opacity;
+        ctx.fillStyle = charColor;
+
+        const uW = ctx.measureText(item.unit.text).width;
+        const uCX = currentX + uW / 2 + item.x;
+        const uCY = drawY - ascent / 2 + item.y;
+
+        ctx.translate(uCX, uCY);
+        ctx.scale(item.scale * item.scaleX, item.scale * item.scaleY);
+        if (item.rotation !== 0) ctx.rotate((item.rotation * Math.PI) / 180);
+        ctx.translate(-uCX, -uCY);
+
+        if (item.blur > 0 && "filter" in ctx) {
+          ctx.filter = `blur(${item.blur}px)`;
+        }
+
+        ctx.fillText(item.unit.text, currentX + item.x, drawY + item.y + (span?.baselineShift || 0));
+        ctx.restore();
+
+        currentX += uW + (item.letterSpacingOffset || 0);
+      });
+    } else if (resolved.spans && resolved.spans.length > 0) {
+      // ── Span-Level / Per-Character Rich Text Rendering ────────────────────
+      const totalInkHeight = inkLineH + (lines.length - 1) * lineHeight;
+      let firstBaselineY = verticalAlign === "top" ? contentY + ascent : verticalAlign === "bottom" ? contentY + contentH - totalInkHeight + ascent : contentY + (contentH - totalInkHeight) / 2 + ascent;
+
+      let globalCharIndex = 0;
+      lines.forEach((line, lineIndex) => {
+        let curX = drawX;
+        if (align === "center") {
+          const lW = ctx.measureText(line).width;
+          curX = contentX + (contentW - lW) / 2;
+        } else if (align === "right") {
+          const lW = ctx.measureText(line).width;
+          curX = contentX + contentW - lW;
+        }
+
+        const chars = Array.from(line);
+        chars.forEach((ch) => {
+          const span = getSpanForCharIndex(resolved.spans, globalCharIndex);
+          const chColor = resolved.perCharFillEnabled && resolved.charFillColors?.[globalCharIndex]
+            ? resolved.charFillColors[globalCharIndex]
+            : span?.color || color;
+
+          ctx.save();
+          if (span?.fontFamily || span?.fontWeight || span?.fontSize) {
+            ctx.font = `${span.fontWeight || fontWeight} ${span.fontSize || adjustedFontSize}px "${resolveFontFamilyName(span.fontFamily || rawFontFamily)}", sans-serif`;
+          }
+          ctx.fillStyle = chColor;
+          ctx.fillText(ch, curX, firstBaselineY + lineIndex * lineHeight + (span?.baselineShift || 0));
+          ctx.restore();
+
+          curX += ctx.measureText(ch).width + (span?.letterSpacing || 0);
+          globalCharIndex += ch.length;
+        });
+        globalCharIndex += 1; // newline
       });
     } else {
-      let drawY: number;
-      if (verticalAlign === "top") {
-        drawY = contentY + ascent;
-      } else if (verticalAlign === "bottom") {
-        drawY = contentY + contentH - descent;
+      // ── Standard Text Rendering ──────────────────────────────────────────
+      if (overflow === "wrap") {
+        const totalInkHeight = inkLineH + (lines.length - 1) * lineHeight;
+        let firstBaselineY: number;
+        if (verticalAlign === "top") {
+          firstBaselineY = contentY + ascent;
+        } else if (verticalAlign === "bottom") {
+          firstBaselineY = contentY + contentH - totalInkHeight + ascent;
+        } else {
+          firstBaselineY = contentY + (contentH - totalInkHeight) / 2 + ascent;
+        }
+        lines.forEach((line, index) => {
+          ctx.fillText(line, drawX, firstBaselineY + index * lineHeight);
+        });
       } else {
-        // middle
-        drawY = contentY + (contentH - inkLineH) / 2 + ascent;
+        let drawY: number;
+        if (verticalAlign === "top") {
+          drawY = contentY + ascent;
+        } else if (verticalAlign === "bottom") {
+          drawY = contentY + contentH - descent;
+        } else {
+          drawY = contentY + (contentH - inkLineH) / 2 + ascent;
+        }
+        ctx.fillText(lines[0], drawX, drawY);
       }
-      ctx.fillText(lines[0], drawX, drawY);
     }
 
-    // Restore panel clip context
     ctx.restore();
-
     ctx.restore();
   }
 
@@ -607,10 +926,11 @@ export class TemplateRenderer {
     // Evaluate all animatable properties at current time
     const shape = resolved.shape;
     const fill = evaluateAnimatable(resolved.fill, this.currentTime, this.template.duration);
-    const x = evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
-    const y = evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
-    const width = evaluateAnimatable(resolved.width, this.currentTime, this.template.duration);
-    const height = evaluateAnimatable(resolved.height, this.currentTime, this.template.duration);
+    const flexLayout = this.computedFlexLayouts.get(resolved.id);
+    const x = flexLayout?.x ?? evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
+    const y = flexLayout?.y ?? evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
+    const width = flexLayout?.width ?? evaluateAnimatable(resolved.width, this.currentTime, this.template.duration);
+    const height = flexLayout?.height ?? evaluateAnimatable(resolved.height, this.currentTime, this.template.duration);
     const stroke = resolved.stroke;
 
     this.lastLayerLayouts.set(resolved.id, { x, y, width, height });
@@ -648,10 +968,11 @@ export class TemplateRenderer {
 
     // Evaluate animatable properties
     const url = resolved.url;
-    const x = evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
-    const y = evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
-    const width = evaluateAnimatable(resolved.width, this.currentTime, this.template.duration);
-    const height = evaluateAnimatable(resolved.height, this.currentTime, this.template.duration);
+    const flexLayout = this.computedFlexLayouts.get(resolved.id);
+    const x = flexLayout?.x ?? evaluateAnimatable(resolved.x, this.currentTime, this.template.duration);
+    const y = flexLayout?.y ?? evaluateAnimatable(resolved.y, this.currentTime, this.template.duration);
+    const width = flexLayout?.width ?? evaluateAnimatable(resolved.width, this.currentTime, this.template.duration);
+    const height = flexLayout?.height ?? evaluateAnimatable(resolved.height, this.currentTime, this.template.duration);
 
     this.lastLayerLayouts.set(resolved.id, { x, y, width, height });
 
@@ -667,5 +988,48 @@ export class TemplateRenderer {
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, x, y, width, height);
     }
+  }
+
+  /**
+   * Renders multi-frame ghost/onion-skin frames onto the canvas for precision motion tuning.
+   */
+  drawOnionSkin(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    time: number,
+    options: {
+      frameCount?: number;
+      frameDelta?: number;
+      pastColor?: string;
+      futureColor?: string;
+    } = {}
+  ): void {
+    const frameCount = options.frameCount ?? 2;
+    const delta = options.frameDelta ?? 0.066; // approx 2 frames at 30fps
+    const duration = this.template.duration || 3.0;
+
+    // Render Past ghost frames (reddish tint, lower alpha)
+    for (let i = frameCount; i >= 1; i--) {
+      const ghostTime = Math.max(0, time - i * delta);
+      if (ghostTime !== time) {
+        ctx.save();
+        ctx.globalAlpha = 0.25 / i;
+        this.drawLayers(ctx, ghostTime);
+        ctx.restore();
+      }
+    }
+
+    // Render Future ghost frames (greenish tint, lower alpha)
+    for (let i = frameCount; i >= 1; i--) {
+      const ghostTime = Math.min(duration, time + i * delta);
+      if (ghostTime !== time) {
+        ctx.save();
+        ctx.globalAlpha = 0.25 / i;
+        this.drawLayers(ctx, ghostTime);
+        ctx.restore();
+      }
+    }
+
+    // Render current active frame at full opacity
+    this.drawFrame(ctx, time, { skipClear: true });
   }
 }

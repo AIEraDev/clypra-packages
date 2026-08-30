@@ -1,10 +1,91 @@
-import { TemplateKeyframe, AnimatableValue, TemplateEasingFunction } from "../types";
+import {
+  TemplateKeyframe,
+  AnimatableValue,
+  TemplateEasingFunction,
+  BezierControlPoints,
+  SpringParams,
+} from "../types";
+
+/**
+ * Newton-Raphson approximation solver for cubic bezier curve easing.
+ * Computes exact y given x in [0, 1].
+ */
+export function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
+  return function (t: number): number {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+
+    let tApprox = t;
+    for (let i = 0; i < 8; i++) {
+      const currentX =
+        3 * (1 - tApprox) * (1 - tApprox) * tApprox * x1 +
+        3 * (1 - tApprox) * tApprox * tApprox * x2 +
+        tApprox * tApprox * tApprox;
+      const slope =
+        3 * (1 - tApprox) * (1 - tApprox) * x1 +
+        6 * (1 - tApprox) * tApprox * (x2 - x1) +
+        3 * tApprox * tApprox * (1 - x2);
+      if (Math.abs(slope) < 1e-6) break;
+      tApprox -= (currentX - t) / slope;
+    }
+
+    tApprox = Math.max(0, Math.min(1, tApprox));
+    return (
+      3 * (1 - tApprox) * (1 - tApprox) * tApprox * y1 +
+      3 * (1 - tApprox) * tApprox * tApprox * y2 +
+      tApprox * tApprox * tApprox
+    );
+  };
+}
+
+/**
+ * Physics-based damped spring oscillator solver.
+ */
+export function solveSpring(t: number, params?: SpringParams): number {
+  const mass = params?.mass ?? 1;
+  const stiffness = params?.stiffness ?? 100;
+  const damping = params?.damping ?? 10;
+
+  const omega0 = Math.sqrt(stiffness / mass);
+  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+
+  if (zeta < 1) {
+    // Underdamped
+    const omegaD = omega0 * Math.sqrt(1 - zeta * zeta);
+    const envelope = Math.exp(-zeta * omega0 * t);
+    return 1 - envelope * (Math.cos(omegaD * t) + (zeta / Math.sqrt(1 - zeta * zeta)) * Math.sin(omegaD * t));
+  } else {
+    // Critically damped or overdamped fallback
+    return 1 - (1 + omega0 * t) * Math.exp(-omega0 * t);
+  }
+}
+
+/**
+ * Standard bounce easing out.
+ */
+function easeOutBounce(t: number): number {
+  const n1 = 7.5625;
+  const d1 = 2.75;
+
+  if (t < 1 / d1) {
+    return n1 * t * t;
+  } else if (t < 2 / d1) {
+    let tVal = t - 1.5 / d1;
+    return n1 * tVal * tVal + 0.75;
+  } else if (t < 2.5 / d1) {
+    let tVal = t - 2.25 / d1;
+    return n1 * tVal * tVal + 0.9375;
+  } else {
+    let tVal = t - 2.625 / d1;
+    return n1 * tVal * tVal + 0.984375;
+  }
+}
 
 /**
  * Check if a value is keyframed
  */
 export function isKeyframed<T>(value: AnimatableValue<T>): value is { keyframes: TemplateKeyframe<T>[] } {
-  return typeof value === "object" && value !== null && "keyframes" in value && Array.isArray(value.keyframes);
+  return typeof value === "object" && value !== null && "keyframes" in value && Array.isArray((value as any).keyframes);
 }
 
 /**
@@ -55,7 +136,7 @@ export function evaluateAnimatable<T>(value: AnimatableValue<T>, time: number, t
   const t = range === 0 ? 0 : (time - left.time) / range;
 
   // Apply easing
-  const easedT = applyEasing(t, right.easing || "linear");
+  const easedT = applyEasing(t, right.easing || "linear", right.bezier, right.spring);
 
   // Interpolate based on value type
   return interpolateValue(left.value, right.value, easedT);
@@ -64,7 +145,12 @@ export function evaluateAnimatable<T>(value: AnimatableValue<T>, time: number, t
 /**
  * Apply easing function to interpolation factor
  */
-function applyEasing(t: number, easing: TemplateEasingFunction): number {
+export function applyEasing(
+  t: number,
+  easing: TemplateEasingFunction,
+  bezier?: BezierControlPoints,
+  spring?: SpringParams
+): number {
   switch (easing) {
     case "linear":
       return t;
@@ -75,8 +161,16 @@ function applyEasing(t: number, easing: TemplateEasingFunction): number {
     case "ease-in-out":
       return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
     case "ease":
-      // Default ease (cubic-bezier approximation)
-      return t * t * (3 - 2 * t);
+      return cubicBezier(0.25, 0.1, 0.25, 1.0)(t);
+    case "cubic-bezier":
+      if (bezier) {
+        return cubicBezier(bezier.x1, bezier.y1, bezier.x2, bezier.y2)(t);
+      }
+      return cubicBezier(0.4, 0.0, 0.2, 1.0)(t);
+    case "spring":
+      return solveSpring(t, spring);
+    case "bounce":
+      return easeOutBounce(t);
     default:
       return t;
   }
@@ -85,66 +179,107 @@ function applyEasing(t: number, easing: TemplateEasingFunction): number {
 /**
  * Interpolate between two values
  */
-function interpolateValue<T>(from: T, to: T, t: number): T {
+export function interpolateValue<T>(from: T, to: T, t: number): T {
   // Handle numbers
   if (typeof from === "number" && typeof to === "number") {
     return (from + (to - from) * t) as T;
   }
 
-  // Handle colors (hex format)
-  if (typeof from === "string" && typeof to === "string" && from.startsWith("#") && to.startsWith("#")) {
-    return interpolateColor(from, to, t) as T;
+  // Handle colors
+  if (typeof from === "string" && typeof to === "string") {
+    const isFromColor = from.startsWith("#") || from.startsWith("rgb");
+    const isToColor = to.startsWith("#") || to.startsWith("rgb");
+    if (isFromColor && isToColor) {
+      return interpolateColorString(from, to, t) as T;
+    }
   }
 
   // For other types, snap to target at midpoint
   return t < 0.5 ? from : to;
 }
 
-/**
- * Interpolate between two hex colors
- */
-function interpolateColor(from: string, to: string, t: number): string {
-  const fromRgb = hexToRgb(from);
-  const toRgb = hexToRgb(to);
+interface ParsedColor {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
 
-  if (!fromRgb || !toRgb) {
+function parseColor(color: string): ParsedColor | null {
+  if (!color) return null;
+  const trimmed = color.trim().toLowerCase();
+
+  // Hex format: #RGB, #RGBA, #RRGGBB, #RRGGBBAA
+  if (trimmed.startsWith("#")) {
+    const hex = trimmed.slice(1);
+    if (hex.length === 3) {
+      return {
+        r: parseInt(hex[0] + hex[0], 16),
+        g: parseInt(hex[1] + hex[1], 16),
+        b: parseInt(hex[2] + hex[2], 16),
+        a: 1,
+      };
+    }
+    if (hex.length === 4) {
+      return {
+        r: parseInt(hex[0] + hex[0], 16),
+        g: parseInt(hex[1] + hex[1], 16),
+        b: parseInt(hex[2] + hex[2], 16),
+        a: parseInt(hex[3] + hex[3], 16) / 255,
+      };
+    }
+    if (hex.length === 6) {
+      return {
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16),
+        a: 1,
+      };
+    }
+    if (hex.length === 8) {
+      return {
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16),
+        a: parseInt(hex.slice(6, 8), 16) / 255,
+      };
+    }
+  }
+
+  // rgb/rgba format: rgba(r, g, b, a) or rgb(r, g, b)
+  const match = trimmed.match(/^rgba?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+  if (match) {
+    return {
+      r: Math.min(255, Math.max(0, parseFloat(match[1]))),
+      g: Math.min(255, Math.max(0, parseFloat(match[2]))),
+      b: Math.min(255, Math.max(0, parseFloat(match[3]))),
+      a: match[4] !== undefined ? Math.min(1, Math.max(0, parseFloat(match[4]))) : 1,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Interpolate between two color strings (hex or rgba)
+ */
+export function interpolateColorString(from: string, to: string, t: number): string {
+  const c1 = parseColor(from);
+  const c2 = parseColor(to);
+
+  if (!c1 || !c2) {
     return t < 0.5 ? from : to;
   }
 
-  const r = Math.round(fromRgb.r + (toRgb.r - fromRgb.r) * t);
-  const g = Math.round(fromRgb.g + (toRgb.g - fromRgb.g) * t);
-  const b = Math.round(fromRgb.b + (toRgb.b - fromRgb.b) * t);
+  const r = Math.round(c1.r + (c2.r - c1.r) * t);
+  const g = Math.round(c1.g + (c2.g - c1.g) * t);
+  const b = Math.round(c1.b + (c2.b - c1.b) * t);
+  const a = Math.round((c1.a + (c2.a - c1.a) * t) * 100) / 100;
 
-  return rgbToHex(r, g, b);
-}
-
-/**
- * Convert hex color to RGB
- */
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : null;
-}
-
-/**
- * Convert RGB to hex color
- */
-function rgbToHex(r: number, g: number, b: number): string {
-  return (
-    "#" +
-    [r, g, b]
-      .map((x) => {
-        const hex = x.toString(16);
-        return hex.length === 1 ? "0" + hex : hex;
-      })
-      .join("")
-  );
+  if (a >= 1) {
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
 /**
@@ -157,22 +292,31 @@ export function createKeyframed<T>(keyframes: TemplateKeyframe<T>[]): { keyframe
 /**
  * Helper to add a keyframe to an animatable value
  */
-export function addKeyframe<T>(value: AnimatableValue<T>, time: number, newValue: T, easing: TemplateEasingFunction = "ease-in-out"): { keyframes: TemplateKeyframe<T>[] } {
-  const existing: TemplateKeyframe<T>[] = isKeyframed(value) ? value.keyframes : [{ time: 0, value: value as T, easing: "linear" as TemplateEasingFunction }];
+export function addKeyframe<T>(
+  value: AnimatableValue<T>,
+  time: number,
+  newValue: T,
+  easing: TemplateEasingFunction = "ease-in-out",
+  bezier?: BezierControlPoints,
+  spring?: SpringParams
+): { keyframes: TemplateKeyframe<T>[] } {
+  const existing: TemplateKeyframe<T>[] = isKeyframed(value)
+    ? value.keyframes
+    : [{ time: 0, value: value as T, easing: "linear" as TemplateEasingFunction }];
 
   // Check if keyframe already exists at this time
   const existingIndex = existing.findIndex((kf) => Math.abs(kf.time - time) < 0.01);
 
+  const newKf: TemplateKeyframe<T> = { time, value: newValue, easing, bezier, spring };
+
   if (existingIndex >= 0) {
-    // Update existing keyframe
     const updated = [...existing];
-    updated[existingIndex] = { time, value: newValue, easing };
+    updated[existingIndex] = newKf;
     return { keyframes: updated.sort((a, b) => a.time - b.time) };
   }
 
-  // Add new keyframe
   return {
-    keyframes: [...existing, { time, value: newValue, easing }].sort((a, b) => a.time - b.time),
+    keyframes: [...existing, newKf].sort((a, b) => a.time - b.time),
   };
 }
 
