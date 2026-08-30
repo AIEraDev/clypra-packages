@@ -119,11 +119,13 @@ export class SelectionEngine {
       for (let i = container.children.length - 1; i >= 0; i--) {
         const child = container.children[i];
         if ((child as any).locked) continue;
+        const childW = typeof child.width === "number" ? child.width : 0;
+        const childH = typeof child.height === "number" ? child.height : 0;
         if (
           clickPoint.x >= child.x &&
-          clickPoint.x <= child.x + child.width &&
+          clickPoint.x <= child.x + childW &&
           clickPoint.y >= child.y &&
-          clickPoint.y <= child.y + child.height
+          clickPoint.y <= child.y + childH
         ) {
           this.select(child.id, doc);
           return true;

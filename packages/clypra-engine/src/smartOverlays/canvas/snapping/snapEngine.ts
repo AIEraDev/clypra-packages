@@ -27,13 +27,16 @@ export class SnapEngine {
     let snappedY = movingNode.y;
     const guides: AlignmentGuide[] = [];
 
+    const movingW = typeof movingNode.width === "number" ? movingNode.width : 0;
+    const movingH = typeof movingNode.height === "number" ? movingNode.height : 0;
+
     const nodeLeft = movingNode.x;
-    const nodeCenter = movingNode.x + movingNode.width / 2;
-    const nodeRight = movingNode.x + movingNode.width;
+    const nodeCenter = movingNode.x + movingW / 2;
+    const nodeRight = movingNode.x + movingW;
 
     const nodeTop = movingNode.y;
-    const nodeMiddle = movingNode.y + movingNode.height / 2;
-    const nodeBottom = movingNode.y + movingNode.height;
+    const nodeMiddle = movingNode.y + movingH / 2;
+    const nodeBottom = movingNode.y + movingH;
 
     // 1. Canvas Boundary & Safe Title Margin Snapping (5% safe area)
     const safeMarginX = Math.round(canvasWidth * 0.05);
@@ -43,11 +46,11 @@ export class SnapEngine {
 
     // Center X & Y
     if (Math.abs(nodeCenter - canvasCenterX) < threshold) {
-      snappedX = canvasCenterX - movingNode.width / 2;
+      snappedX = canvasCenterX - movingW / 2;
       guides.push({ type: "vertical", position: canvasCenterX });
     }
     if (Math.abs(nodeMiddle - canvasCenterY) < threshold) {
-      snappedY = canvasCenterY - movingNode.height / 2;
+      snappedY = canvasCenterY - movingH / 2;
       guides.push({ type: "horizontal", position: canvasCenterY });
     }
 
@@ -56,7 +59,7 @@ export class SnapEngine {
       snappedX = safeMarginX;
       guides.push({ type: "vertical", position: safeMarginX });
     } else if (Math.abs(nodeRight - (canvasWidth - safeMarginX)) < threshold) {
-      snappedX = canvasWidth - safeMarginX - movingNode.width;
+      snappedX = canvasWidth - safeMarginX - movingW;
       guides.push({ type: "vertical", position: canvasWidth - safeMarginX });
     }
 
@@ -64,7 +67,7 @@ export class SnapEngine {
       snappedY = safeMarginY;
       guides.push({ type: "horizontal", position: safeMarginY });
     } else if (Math.abs(nodeBottom - (canvasHeight - safeMarginY)) < threshold) {
-      snappedY = canvasHeight - safeMarginY - movingNode.height;
+      snappedY = canvasHeight - safeMarginY - movingH;
       guides.push({ type: "horizontal", position: canvasHeight - safeMarginY });
     }
 
@@ -72,8 +75,8 @@ export class SnapEngine {
     for (const other of otherNodes) {
       const otherX = other.x;
       const otherY = other.y;
-      const otherW = other.width;
-      const otherH = other.height;
+      const otherW = typeof other.width === "number" ? other.width : 0;
+      const otherH = typeof other.height === "number" ? other.height : 0;
 
       const otherCenter = otherX + otherW / 2;
       const otherMiddle = otherY + otherH / 2;
@@ -99,10 +102,10 @@ export class SnapEngine {
         snappedX = otherX;
         guides.push({ type: "vertical", position: otherX });
       } else if (Math.abs(nodeCenter - otherCenter) < threshold) {
-        snappedX = otherCenter - movingNode.width / 2;
+        snappedX = otherCenter - movingW / 2;
         guides.push({ type: "vertical", position: otherCenter });
       } else if (Math.abs(nodeRight - (otherX + otherW)) < threshold) {
-        snappedX = otherX + otherW - movingNode.width;
+        snappedX = otherX + otherW - movingW;
         guides.push({ type: "vertical", position: otherX + otherW });
       }
 
@@ -111,10 +114,10 @@ export class SnapEngine {
         snappedY = otherY;
         guides.push({ type: "horizontal", position: otherY });
       } else if (Math.abs(nodeMiddle - otherMiddle) < threshold) {
-        snappedY = otherMiddle - movingNode.height / 2;
+        snappedY = otherMiddle - movingH / 2;
         guides.push({ type: "horizontal", position: otherMiddle });
       } else if (Math.abs(nodeBottom - (otherY + otherH)) < threshold) {
-        snappedY = otherY + otherH - movingNode.height;
+        snappedY = otherY + otherH - movingH;
         guides.push({ type: "horizontal", position: otherY + otherH });
       }
     }
@@ -123,9 +126,11 @@ export class SnapEngine {
     if (otherNodes.length >= 2) {
       const sortedX = [...otherNodes].sort((a, b) => a.x - b.x);
       for (let i = 0; i < sortedX.length - 1; i++) {
-        const gap = sortedX[i + 1].x - (sortedX[i].x + sortedX[i].width);
+        const itemW = typeof sortedX[i].width === "number" ? (sortedX[i].width as number) : 0;
+        const nextItemW = typeof sortedX[i + 1].width === "number" ? (sortedX[i + 1].width as number) : 0;
+        const gap = sortedX[i + 1].x - (sortedX[i].x + itemW);
         if (gap > 0) {
-          const targetNextX = sortedX[i + 1].x + sortedX[i + 1].width + gap;
+          const targetNextX = sortedX[i + 1].x + nextItemW + gap;
           if (Math.abs(nodeLeft - targetNextX) < threshold) {
             snappedX = targetNextX;
             guides.push({ type: "vertical", position: targetNextX });

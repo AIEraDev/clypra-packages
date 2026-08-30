@@ -45,62 +45,65 @@ export class TransformEngine {
   ): T {
     const { lockAspectRatio = false, minWidth = 10, minHeight = 10 } = options;
 
+    const initialW = typeof node.width === "number" ? node.width : 200;
+    const initialH = typeof node.height === "number" ? node.height : 50;
+
     let newX = node.x;
     let newY = node.y;
-    let newWidth = node.width;
-    let newHeight = node.height;
-    const initialAspect = node.width > 0 && node.height > 0 ? node.width / node.height : 1.0;
+    let newWidth = initialW;
+    let newHeight = initialH;
+    const initialAspect = initialW > 0 && initialH > 0 ? initialW / initialH : 1.0;
 
     switch (handle) {
       case "e":
-        newWidth = Math.max(minWidth, node.width + dx);
+        newWidth = Math.max(minWidth, initialW + dx);
         if (lockAspectRatio) newHeight = Math.max(minHeight, newWidth / initialAspect);
         break;
 
       case "w": {
-        const potentialW = node.width - dx;
+        const potentialW = initialW - dx;
         if (potentialW >= minWidth) {
           newWidth = potentialW;
           newX = node.x + dx;
         } else {
           newWidth = minWidth;
-          newX = node.x + (node.width - minWidth);
+          newX = node.x + (initialW - minWidth);
         }
         if (lockAspectRatio) newHeight = Math.max(minHeight, newWidth / initialAspect);
         break;
       }
 
       case "s":
-        newHeight = Math.max(minHeight, node.height + dy);
+        newHeight = Math.max(minHeight, initialH + dy);
         if (lockAspectRatio) newWidth = Math.max(minWidth, newHeight * initialAspect);
         break;
 
       case "n": {
-        const potentialH = node.height - dy;
+        const potentialH = initialH - dy;
         if (potentialH >= minHeight) {
           newHeight = potentialH;
           newY = node.y + dy;
         } else {
           newHeight = minHeight;
-          newY = node.y + (node.height - minHeight);
+          newY = node.y + (initialH - minHeight);
         }
         if (lockAspectRatio) newWidth = Math.max(minWidth, newHeight * initialAspect);
         break;
       }
 
       case "se":
-        newWidth = Math.max(minWidth, node.width + dx);
-        newHeight = Math.max(minHeight, node.height + dy);
+        newWidth = Math.max(minWidth, initialW + dx);
+        newHeight = Math.max(minHeight, initialH + dy);
         if (lockAspectRatio) {
-          const scale = Math.max(newWidth / node.width, newHeight / node.height);
-          newWidth = Math.max(minWidth, node.width * scale);
-          newHeight = Math.max(minHeight, node.height * scale);
+          const scale = Math.max(newWidth / initialW, newHeight / initialH);
+          newWidth = Math.max(minWidth, initialW * scale);
+          newHeight = Math.max(minHeight, initialH * scale);
         }
         break;
 
       case "nw": {
-        const potW = node.width - dx;
-        const potH = node.height - dy;
+        const potW = initialW - dx;
+        const potH = initialH - dy;
         if (potW >= minWidth) {
           newWidth = potW;
           newX = node.x + dx;
@@ -110,16 +113,16 @@ export class TransformEngine {
           newY = node.y + dy;
         }
         if (lockAspectRatio) {
-          const scale = Math.max(newWidth / node.width, newHeight / node.height);
-          newWidth = Math.max(minWidth, node.width * scale);
-          newHeight = Math.max(minHeight, node.height * scale);
+          const scale = Math.max(newWidth / initialW, newHeight / initialH);
+          newWidth = Math.max(minWidth, initialW * scale);
+          newHeight = Math.max(minHeight, initialH * scale);
         }
         break;
       }
 
       case "ne": {
-        newWidth = Math.max(minWidth, node.width + dx);
-        const potH = node.height - dy;
+        newWidth = Math.max(minWidth, initialW + dx);
+        const potH = initialH - dy;
         if (potH >= minHeight) {
           newHeight = potH;
           newY = node.y + dy;
@@ -131,12 +134,12 @@ export class TransformEngine {
       }
 
       case "sw": {
-        const potW = node.width - dx;
+        const potW = initialW - dx;
         if (potW >= minWidth) {
           newWidth = potW;
           newX = node.x + dx;
         }
-        newHeight = Math.max(minHeight, node.height + dy);
+        newHeight = Math.max(minHeight, initialH + dy);
         if (lockAspectRatio) {
           newWidth = Math.max(minWidth, newHeight * initialAspect);
         }
@@ -176,9 +179,9 @@ export class TransformEngine {
     } else {
       // Relative to selection bounds
       const minX = Math.min(...nodes.map((n) => n.x));
-      const maxX = Math.max(...nodes.map((n) => n.x + n.width));
+      const maxX = Math.max(...nodes.map((n) => n.x + (typeof n.width === "number" ? n.width : 0)));
       const minY = Math.min(...nodes.map((n) => n.y));
-      const maxY = Math.max(...nodes.map((n) => n.y + n.height));
+      const maxY = Math.max(...nodes.map((n) => n.y + (typeof n.height === "number" ? n.height : 0)));
 
       switch (alignment) {
         case "left": targetCoord = minX; break;
@@ -193,25 +196,27 @@ export class TransformEngine {
     return nodes.map((node) => {
       let updatedX = node.x;
       let updatedY = node.y;
+      const nW = typeof node.width === "number" ? node.width : 0;
+      const nH = typeof node.height === "number" ? node.height : 0;
 
       switch (alignment) {
         case "left":
           updatedX = targetCoord;
           break;
         case "center":
-          updatedX = Math.round(targetCoord - node.width / 2);
+          updatedX = Math.round(targetCoord - nW / 2);
           break;
         case "right":
-          updatedX = Math.round(targetCoord - node.width);
+          updatedX = Math.round(targetCoord - nW);
           break;
         case "top":
           updatedY = targetCoord;
           break;
         case "middle":
-          updatedY = Math.round(targetCoord - node.height / 2);
+          updatedY = Math.round(targetCoord - nH / 2);
           break;
         case "bottom":
-          updatedY = Math.round(targetCoord - node.height);
+          updatedY = Math.round(targetCoord - nH);
           break;
       }
 
@@ -230,35 +235,39 @@ export class TransformEngine {
     const last = sorted[sorted.length - 1];
 
     if (axis === "horizontal") {
-      const totalSpan = last.x + last.width - first.x;
-      const totalNodeWidths = sorted.reduce((sum, n) => sum + n.width, 0);
+      const lastW = typeof last.width === "number" ? last.width : 0;
+      const totalSpan = last.x + lastW - first.x;
+      const totalNodeWidths = sorted.reduce((sum, n) => sum + (typeof n.width === "number" ? n.width : 0), 0);
       const totalGapSpace = totalSpan - totalNodeWidths;
       const gap = totalGapSpace / (sorted.length - 1);
 
       let currentX = first.x;
       return sorted.map((node, i) => {
+        const nW = typeof node.width === "number" ? node.width : 0;
         if (i === 0) {
-          currentX += node.width + gap;
+          currentX += nW + gap;
           return node;
         }
         const updated = { ...node, x: Math.round(currentX) };
-        currentX += node.width + gap;
+        currentX += nW + gap;
         return updated;
       });
     } else {
-      const totalSpan = last.y + last.height - first.y;
-      const totalNodeHeights = sorted.reduce((sum, n) => sum + n.height, 0);
+      const lastH = typeof last.height === "number" ? last.height : 0;
+      const totalSpan = last.y + lastH - first.y;
+      const totalNodeHeights = sorted.reduce((sum, n) => sum + (typeof n.height === "number" ? n.height : 0), 0);
       const totalGapSpace = totalSpan - totalNodeHeights;
       const gap = totalGapSpace / (sorted.length - 1);
 
       let currentY = first.y;
       return sorted.map((node, i) => {
+        const nH = typeof node.height === "number" ? node.height : 0;
         if (i === 0) {
-          currentY += node.height + gap;
+          currentY += nH + gap;
           return node;
         }
         const updated = { ...node, y: Math.round(currentY) };
-        currentY += node.height + gap;
+        currentY += nH + gap;
         return updated;
       });
     }

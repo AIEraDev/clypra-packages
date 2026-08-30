@@ -96,8 +96,8 @@ export function evaluateOverlayDocument(
     }
 
     const computedBounds = computedLayout.nodes[responsiveNode.id];
-    const finalWidth = computedBounds ? computedBounds.width : animState.width;
-    const finalHeight = computedBounds ? computedBounds.height : animState.height;
+    const finalWidth = computedBounds ? computedBounds.width : (typeof animState.width === "number" ? animState.width : 400);
+    const finalHeight = computedBounds ? computedBounds.height : (typeof animState.height === "number" ? animState.height : 120);
     const finalX = computedBounds ? computedBounds.x : animState.x;
     const finalY = computedBounds ? computedBounds.y : animState.y;
 

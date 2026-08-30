@@ -102,11 +102,13 @@ export class DataBindingEngine {
       }
 
       if (direction === "horizontal") {
-        clonedNode.x = repeater.x + idx * (clonedNode.width + gap);
+        const nodeW = typeof clonedNode.width === "number" ? clonedNode.width : 0;
+        clonedNode.x = repeater.x + idx * (nodeW + gap);
         clonedNode.y = repeater.y;
       } else {
+        const nodeH = typeof clonedNode.height === "number" ? clonedNode.height : 0;
         clonedNode.x = repeater.x;
-        clonedNode.y = repeater.y + idx * (clonedNode.height + gap);
+        clonedNode.y = repeater.y + idx * (nodeH + gap);
       }
 
       // Apply stagger animation offset

@@ -41,19 +41,22 @@ export class DocumentValidator {
       }
     }
 
-    // Validate safe zone boundaries
-    const absX = node.x < 100 ? (node.x / 100) * doc.canvas.width : node.x;
-    const absY = node.y < 100 ? (node.y / 100) * doc.canvas.height : node.y;
-    const absW = node.width <= 100 ? (node.width / 100) * doc.canvas.width : node.width;
-    const absH = node.height <= 100 ? (node.height / 100) * doc.canvas.height : node.height;
+    // Validate safe zone boundaries — skip for content-driven ("auto") dimensions
+    // since their far edge is only known after measurement at draw time.
+    if (typeof node.width === "number" && typeof node.height === "number") {
+      const absX = node.x < 100 ? (node.x / 100) * doc.canvas.width : node.x;
+      const absY = node.y < 100 ? (node.y / 100) * doc.canvas.height : node.y;
+      const absW = node.width <= 100 ? (node.width / 100) * doc.canvas.width : node.width;
+      const absH = node.height <= 100 ? (node.height / 100) * doc.canvas.height : node.height;
 
-    if (absX + absW > doc.canvas.width || absY + absH > doc.canvas.height) {
-      diagnostics.push({
-        severity: "warning",
-        code: "WARN_OUT_OF_BOUNDS",
-        message: `Node "${node.name || node.id}" extends outside canvas bounds.`,
-        nodeId: node.id
-      });
+      if (absX + absW > doc.canvas.width || absY + absH > doc.canvas.height) {
+        diagnostics.push({
+          severity: "warning",
+          code: "WARN_OUT_OF_BOUNDS",
+          message: `Node "${node.name || node.id}" extends outside canvas bounds.`,
+          nodeId: node.id
+        });
+      }
     }
 
     if ("children" in node && Array.isArray(node.children)) {

@@ -33,26 +33,29 @@ export class SmartGuideEngine {
     let snappedY = false;
     const guides: SmartAlignmentGuide[] = [];
 
+    const movingW = typeof moving.width === "number" ? moving.width : 0;
+    const movingH = typeof moving.height === "number" ? moving.height : 0;
+
     const left = moving.x;
-    const centerX = moving.x + moving.width / 2;
-    const right = moving.x + moving.width;
+    const centerX = moving.x + movingW / 2;
+    const right = moving.x + movingW;
 
     const top = moving.y;
-    const centerY = moving.y + moving.height / 2;
-    const bottom = moving.y + moving.height;
+    const centerY = moving.y + movingH / 2;
+    const bottom = moving.y + movingH;
 
     // 1. Canvas Center Snapping
     const canvasCenterX = canvasWidth / 2;
     const canvasCenterY = canvasHeight / 2;
 
     if (Math.abs(centerX - canvasCenterX) <= threshold) {
-      finalX = Math.round(canvasCenterX - moving.width / 2);
+      finalX = Math.round(canvasCenterX - movingW / 2);
       snappedX = true;
       guides.push({ type: "vertical", position: canvasCenterX, label: "Canvas Center X" });
     }
 
     if (Math.abs(centerY - canvasCenterY) <= threshold) {
-      finalY = Math.round(canvasCenterY - moving.height / 2);
+      finalY = Math.round(canvasCenterY - movingH / 2);
       snappedY = true;
       guides.push({ type: "horizontal", position: canvasCenterY, label: "Canvas Center Y" });
     }
@@ -67,7 +70,7 @@ export class SmartGuideEngine {
         snappedX = true;
         guides.push({ type: "vertical", position: safeMarginX, label: "Safe Margin Left" });
       } else if (Math.abs(right - (canvasWidth - safeMarginX)) <= threshold) {
-        finalX = canvasWidth - safeMarginX - moving.width;
+        finalX = canvasWidth - safeMarginX - movingW;
         snappedX = true;
         guides.push({ type: "vertical", position: canvasWidth - safeMarginX, label: "Safe Margin Right" });
       }
@@ -79,7 +82,7 @@ export class SmartGuideEngine {
         snappedY = true;
         guides.push({ type: "horizontal", position: safeMarginY, label: "Safe Margin Top" });
       } else if (Math.abs(bottom - (canvasHeight - safeMarginY)) <= threshold) {
-        finalY = canvasHeight - safeMarginY - moving.height;
+        finalY = canvasHeight - safeMarginY - movingH;
         snappedY = true;
         guides.push({ type: "horizontal", position: canvasHeight - safeMarginY, label: "Safe Margin Bottom" });
       }
@@ -87,13 +90,16 @@ export class SmartGuideEngine {
 
     // 3. Sibling Node Alignment Snapping
     for (const other of otherNodes) {
+      const otherW = typeof other.width === "number" ? other.width : 0;
+      const otherH = typeof other.height === "number" ? other.height : 0;
+
       const oLeft = other.x;
-      const oCenterX = other.x + other.width / 2;
-      const oRight = other.x + other.width;
+      const oCenterX = other.x + otherW / 2;
+      const oRight = other.x + otherW;
 
       const oTop = other.y;
-      const oCenterY = other.y + other.height / 2;
-      const oBottom = other.y + other.height;
+      const oCenterY = other.y + otherH / 2;
+      const oBottom = other.y + otherH;
 
       // X Alignments
       if (!snappedX) {
@@ -102,11 +108,11 @@ export class SmartGuideEngine {
           snappedX = true;
           guides.push({ type: "vertical", position: oLeft, label: "Align Left" });
         } else if (Math.abs(centerX - oCenterX) <= threshold) {
-          finalX = Math.round(oCenterX - moving.width / 2);
+          finalX = Math.round(oCenterX - movingW / 2);
           snappedX = true;
           guides.push({ type: "vertical", position: oCenterX, label: "Align Center X" });
         } else if (Math.abs(right - oRight) <= threshold) {
-          finalX = Math.round(oRight - moving.width);
+          finalX = Math.round(oRight - movingW);
           snappedX = true;
           guides.push({ type: "vertical", position: oRight, label: "Align Right" });
         } else if (Math.abs(left - oRight) <= threshold) {
@@ -114,7 +120,7 @@ export class SmartGuideEngine {
           snappedX = true;
           guides.push({ type: "vertical", position: oRight, label: "Edge Flush Right" });
         } else if (Math.abs(right - oLeft) <= threshold) {
-          finalX = Math.round(oLeft - moving.width);
+          finalX = Math.round(oLeft - movingW);
           snappedX = true;
           guides.push({ type: "vertical", position: oLeft, label: "Edge Flush Left" });
         }
@@ -127,11 +133,11 @@ export class SmartGuideEngine {
           snappedY = true;
           guides.push({ type: "horizontal", position: oTop, label: "Align Top" });
         } else if (Math.abs(centerY - oCenterY) <= threshold) {
-          finalY = Math.round(oCenterY - moving.height / 2);
+          finalY = Math.round(oCenterY - movingH / 2);
           snappedY = true;
           guides.push({ type: "horizontal", position: oCenterY, label: "Align Center Y" });
         } else if (Math.abs(bottom - oBottom) <= threshold) {
-          finalY = Math.round(oBottom - moving.height);
+          finalY = Math.round(oBottom - movingH);
           snappedY = true;
           guides.push({ type: "horizontal", position: oBottom, label: "Align Bottom" });
         } else if (Math.abs(top - oBottom) <= threshold) {
@@ -139,7 +145,7 @@ export class SmartGuideEngine {
           snappedY = true;
           guides.push({ type: "horizontal", position: oBottom, label: "Edge Flush Bottom" });
         } else if (Math.abs(bottom - oTop) <= threshold) {
-          finalY = Math.round(oTop - moving.height);
+          finalY = Math.round(oTop - movingH);
           snappedY = true;
           guides.push({ type: "horizontal", position: oTop, label: "Edge Flush Top" });
         }

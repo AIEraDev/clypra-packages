@@ -205,7 +205,9 @@ export class ExportValidator {
       }
     }
 
-    if (isNaN(node.x) || isNaN(node.y) || isNaN(node.width) || isNaN(node.height)) {
+    const widthIsNaN = typeof node.width === "number" ? isNaN(node.width) : false;
+    const heightIsNaN = typeof node.height === "number" ? isNaN(node.height) : false;
+    if (isNaN(node.x) || isNaN(node.y) || widthIsNaN || heightIsNaN) {
       diagnostics.push({
         severity: "error",
         code: "UNRESOLVED_CONSTRAINTS",

@@ -376,8 +376,9 @@ export class CommandExecutor {
         for (const n of targetNodes) {
           if (n.x < minX) minX = n.x;
           if (n.y < minY) minY = n.y;
-          if (n.x + n.width > maxX) maxX = n.x + n.width;
-          if (n.y + n.height > maxY) maxY = n.y + n.height;
+          // "auto"-sized nodes have no known far edge at layout time — skip them.
+          if (typeof n.width === "number" && n.x + n.width > maxX) maxX = n.x + n.width;
+          if (typeof n.height === "number" && n.y + n.height > maxY) maxY = n.y + n.height;
         }
 
         const frameId = `frame-${Date.now().toString(36)}`;
