@@ -1,14 +1,13 @@
 import type {
-  AssetRef,
-  FontRef,
-  OverlayDocument,
-  SceneNode,
-  TimelineMarker,
-} from "../smartOverlays/overlayDocumentSchema.js";
-import type { EvaluatedScene, RuntimeContext } from "../smartOverlays/runtime/evaluatedScene.js";
+  LayerAnimation,
+  ResponsiveAnchorConfig,
+  TextStyleSpan,
+  TextSplitAnimator,
+  TemplateVariableDefinition,
+} from "../types.js";
 
 export const TEXT_TEMPLATE_KIND = "text-template" as const;
-export const TEXT_TEMPLATE_SCHEMA_VERSION = 3 as const;
+export const TEXT_TEMPLATE_SCHEMA_VERSION = 4 as const;
 export const TEXT_TEMPLATE_RENDERER_VERSION = "1.5.0" as const;
 
 export type TemplateControlType =
@@ -57,6 +56,13 @@ export interface TemplateProtectedRegion {
 
 export type TemplateDurationPolicy = "fixed" | "stretch" | "trim" | "loop";
 
+export interface TemplateTimelineMarker {
+  id: string;
+  label: string;
+  time: number;
+  color?: string;
+}
+
 export interface TemplateTiming {
   duration: number;
   fps: number;
@@ -64,12 +70,31 @@ export interface TemplateTiming {
   intro?: TemplateProtectedRegion;
   outro?: TemplateProtectedRegion;
   loop?: TemplateProtectedRegion;
-  markers?: TimelineMarker[];
+  markers?: TemplateTimelineMarker[];
+}
+
+export interface TemplateAssetRef {
+  id: string;
+  name?: string;
+  type: "image" | "video" | "audio";
+  mimeType: string;
+  sizeBytes?: number;
+  uri: string;
+  contentHash: string;
+}
+
+export interface TemplateFontRef {
+  family: string;
+  postscriptName?: string;
+  style?: string;
+  weight?: string | number;
+  sourceUrl?: string;
+  format?: "woff2" | "ttf" | "otf";
 }
 
 export interface TemplateDependencyManifest {
-  assets: AssetRef[];
-  fonts: FontRef[];
+  assets: TemplateAssetRef[];
+  fonts: TemplateFontRef[];
   textEffects: Array<{
     effectId: string;
     revisionId: string;
@@ -105,10 +130,118 @@ export interface TemplatePreviewArtifacts {
   generatedAt?: string;
 }
 
-export interface TextTemplateDocument extends OverlayDocument {
+// ---------------------------------------------------------------------------
+// Native Text Template Layer Nodes (Isolated Clean Architecture Schema)
+// ---------------------------------------------------------------------------
+
+export interface TemplateTextNodeStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: string | number;
+  textColor: string;
+  textAlign?: "left" | "center" | "right";
+  lineHeight?: number;
+  letterSpacing?: number;
+  overflow?: "wrap" | "shrink" | "expand-panel" | "clip";
+  verticalAlign?: "top" | "middle" | "bottom";
+}
+
+export interface TemplateBackgroundPanel {
+  color?: string;
+  opacity?: number;
+  paddingTop?: number;
+  paddingRight?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  borderRadius?: number;
+  borderColor?: string;
+  borderWidth?: number;
+}
+
+export interface TemplateTextNode {
+  id: string;
+  name?: string;
+  type: "text";
+  text: string;
+  x: number;
+  y: number;
+  width: number | "auto";
+  height: number | "auto";
+  style: TemplateTextNodeStyle;
+  backgroundPanel?: TemplateBackgroundPanel;
+  animation?: LayerAnimation;
+  spans?: TextStyleSpan[];
+  perCharFillEnabled?: boolean;
+  charFillColors?: string[];
+  splitAnimator?: TextSplitAnimator;
+  anchor?: ResponsiveAnchorConfig;
+  textEffectRef?: {
+    effectId: string;
+    revisionId: string;
+    contentHash: string;
+    snapshot?: unknown;
+  };
+  parentId?: string;
+}
+
+export interface TemplateShapeNodeStyle {
+  fillColor: string;
+  fillOpacity?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+}
+
+export interface TemplateShapeNode {
+  id: string;
+  name?: string;
+  type: "shape";
+  shapeType: "rectangle" | "circle" | "line";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  style: TemplateShapeNodeStyle;
+  animation?: LayerAnimation;
+  anchor?: ResponsiveAnchorConfig;
+  parentId?: string;
+}
+
+export interface TemplateImageNode {
+  id: string;
+  name?: string;
+  type: "media";
+  mediaType: "image";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  assetId?: string;
+  src?: string;
+  style?: {
+    opacity?: number;
+  };
+  animation?: LayerAnimation;
+  anchor?: ResponsiveAnchorConfig;
+  parentId?: string;
+}
+
+export type TemplateNode = TemplateTextNode | TemplateShapeNode | TemplateImageNode;
+
+export interface TextTemplateCanvas {
+  width: number;
+  height: number;
+  fps?: number;
+  backgroundColor?: string;
+}
+
+export interface TextTemplateDocument {
+  id: string;
   kind: typeof TEXT_TEMPLATE_KIND;
   schemaVersion: typeof TEXT_TEMPLATE_SCHEMA_VERSION;
   templateVersion: 1;
+  canvas: TextTemplateCanvas;
+  nodes: TemplateNode[];
+  variables?: Record<string, TemplateVariableDefinition>;
 }
 
 export interface TextTemplateArtifact {
@@ -140,7 +273,7 @@ export interface TemplateRenderContext {
   target: TemplateRenderTarget;
   controlValues?: Record<string, unknown>;
   clipDuration?: number;
-  runtime?: RuntimeContext;
+  runtime?: Record<string, unknown>;
 }
 
 export interface CompiledTemplateRenderLayer {
@@ -167,6 +300,11 @@ export interface TemplateCapabilityReport {
   warnings: string[];
 }
 
+export interface EvaluatedTemplateScene {
+  nodes: CompiledTemplateRenderLayer[];
+  diagnostics: Array<{ level: "error" | "warning" | "info"; code: string; message: string; nodeId?: string }>;
+}
+
 export interface CompiledTextTemplate {
   kind: typeof TEXT_TEMPLATE_KIND;
   templateId: string;
@@ -177,12 +315,10 @@ export interface CompiledTextTemplate {
   duration: number;
   fps: number;
   time: number;
-  evaluatedScene: EvaluatedScene;
+  evaluatedScene: EvaluatedTemplateScene;
   resolvedControls: Record<string, unknown>;
   layers: CompiledTemplateRenderLayer[];
   dependencies: TemplateDependencyManifest;
   capabilities: Record<TemplateRenderTarget, TemplateCapabilityReport>;
   diagnostics: Array<{ level: "error" | "warning" | "info"; code: string; message: string; nodeId?: string }>;
 }
-
-export type TemplateNode = SceneNode;
