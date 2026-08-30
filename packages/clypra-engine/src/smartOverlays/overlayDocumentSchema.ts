@@ -256,6 +256,11 @@ export interface SpatialAnchorConfig {
   offsetY?: number;
 }
 
+export interface NodeSizingPolicy {
+  width?: "fixed" | "hug-content";
+  height?: "fixed" | "hug-content";
+}
+
 export interface SceneNodeBase {
   id: string;
   name: string;
@@ -264,6 +269,7 @@ export interface SceneNodeBase {
   y: number;
   width: number;
   height: number;
+  sizingPolicy?: NodeSizingPolicy;
   rotation?: number;
   visible?: boolean;
   locked?: boolean;

@@ -74,7 +74,12 @@ export class LayoutEngine {
       const anchor = (node as any).anchor;
       if (anchor && anchor.targetId && result[anchor.targetId]) {
         const targetBounds = result[anchor.targetId];
-        const currentBounds = result[node.id] || { x: node.x, y: node.y, width: node.width, height: node.height };
+        const currentBounds = result[node.id] || {
+          x: node.x,
+          y: node.y,
+          width: typeof node.width === "number" ? node.width : 400,
+          height: typeof node.height === "number" ? node.height : 120,
+        };
 
         let targetPointX = targetBounds.x + targetBounds.width / 2;
         let targetPointY = targetBounds.y + targetBounds.height / 2;
@@ -127,10 +132,12 @@ export class LayoutEngine {
           lineNode.startX !== undefined ||
           lineNode.endX !== undefined
         ) {
+          const fallbackEndW = typeof node.width === "number" ? node.width : 0;
+          const fallbackEndH = typeof node.height === "number" ? node.height : 0;
           const startX = startTarget ? startTarget.x + startTarget.width / 2 : (lineNode.startX ?? node.x);
           const startY = startTarget ? startTarget.y + startTarget.height / 2 : (lineNode.startY ?? node.y);
-          const endX = endTarget ? endTarget.x + endTarget.width / 2 : (lineNode.endX ?? (node.x + node.width));
-          const endY = endTarget ? endTarget.y + endTarget.height / 2 : (lineNode.endY ?? (node.y + node.height));
+          const endX = endTarget ? endTarget.x + endTarget.width / 2 : (lineNode.endX ?? (node.x + fallbackEndW));
+          const endY = endTarget ? endTarget.y + endTarget.height / 2 : (lineNode.endY ?? (node.y + fallbackEndH));
 
           const minX = Math.min(startX, endX);
           const minY = Math.min(startY, endY);
@@ -158,9 +165,11 @@ export class LayoutEngine {
           ? this.resolveAnchorPoint(fromTarget, conn.fromAnchor || conn.fromElement)
           : { x: node.x, y: node.y };
 
+        const fallbackConnW = typeof node.width === "number" ? node.width : 100;
+        const fallbackConnH = typeof node.height === "number" ? node.height : 100;
         const toPt = toTarget
           ? this.resolveAnchorPoint(toTarget, conn.toAnchor || conn.toElement)
-          : { x: node.x + (node.width || 100), y: node.y + (node.height || 100) };
+          : { x: node.x + fallbackConnW, y: node.y + fallbackConnH };
 
         const minX = Math.min(fromPt.x, toPt.x);
         const minY = Math.min(fromPt.y, toPt.y);
@@ -235,8 +244,24 @@ export class LayoutEngine {
     // 1. Initial absolute coordinates
     let absX = isAbsoluteSlot ? parentX : parentX + node.x;
     let absY = isAbsoluteSlot ? parentY : parentY + node.y;
-    let width = node.width;
-    let height = node.height;
+    let width: number;
+    let height: number;
+
+    if (node.type === "text") {
+      const fontSize = node.style?.fontSize ?? 48;
+      const fontWeight = node.style?.fontWeight ?? "normal";
+      const fontFamily = node.style?.fontFamily ?? "Inter, sans-serif";
+      const textContent = node.text ?? "Text";
+      const measuredW = measureTextWidth(textContent, fontSize, fontWeight, fontFamily);
+      width = typeof node.width === "number" && node.width > 0 ? node.width : measuredW;
+
+      const lineHeight = node.style?.lineHeight ?? 1.2;
+      const measuredH = Math.ceil(fontSize * lineHeight);
+      height = typeof node.height === "number" && node.height > 0 ? node.height : measuredH;
+    } else {
+      width = typeof node.width === "number" ? node.width : 400;
+      height = typeof node.height === "number" ? node.height : 120;
+    }
 
     // Line / Connector intrinsic thickness
     if (node.type === "line" || (node as any).shapeKind === "line") {
@@ -279,7 +304,8 @@ export class LayoutEngine {
         const scaleX = containerW / (doc.canvas.width || 1280);
         absX = Math.round(parentX + node.x * scaleX);
         if (node.layout?.constraints?.widthMode !== "fixed") {
-          width = Math.round(node.width * scaleX);
+          const baseW = typeof node.width === "number" ? node.width : width;
+          width = Math.round(baseW * scaleX);
         }
       }
 
@@ -292,7 +318,8 @@ export class LayoutEngine {
         const scaleY = containerH / (doc.canvas.height || 720);
         absY = Math.round(parentY + node.y * scaleY);
         if (node.layout?.constraints?.heightMode !== "fixed") {
-          height = Math.round(node.height * scaleY);
+          const baseH = typeof node.height === "number" ? node.height : height;
+          height = Math.round(baseH * scaleY);
         }
       }
     }
@@ -513,7 +540,7 @@ export class LayoutEngine {
         }
 
         if (effectiveHeightMode === "hug") {
-          height = activeChildren.length > 0 ? hugHeight : (node.height || 240);
+          height = activeChildren.length > 0 ? hugHeight : (typeof node.height === "number" ? node.height : 240);
         } else if (effectiveHeightMode !== "fill") {
           if (activeChildren.length > 0 && hugHeight > height) {
             height = hugHeight;
@@ -629,7 +656,7 @@ export class LayoutEngine {
         const hugHeight = totalContentH + normPadding.top + normPadding.bottom;
 
         if (effectiveWidthMode === "hug") {
-          width = activeColChildren.length > 0 ? hugWidth : (node.width || 320);
+          width = activeColChildren.length > 0 ? hugWidth : (typeof node.width === "number" ? node.width : 320);
         } else if (effectiveWidthMode !== "fill") {
           if (activeColChildren.length > 0 && hugWidth > width) {
             width = hugWidth;
@@ -637,7 +664,7 @@ export class LayoutEngine {
         }
 
         if (effectiveHeightMode === "hug") {
-          height = activeColChildren.length > 0 ? hugHeight : (node.height || 240);
+          height = activeColChildren.length > 0 ? hugHeight : (typeof node.height === "number" ? node.height : 240);
         } else if (effectiveHeightMode !== "fill") {
           if (activeColChildren.length > 0 && hugHeight > height) {
             height = hugHeight;
