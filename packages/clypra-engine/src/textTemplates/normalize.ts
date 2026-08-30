@@ -1,4 +1,3 @@
-import type { SceneNode } from "../smartOverlays/overlayDocumentSchema.js";
 import {
   TEXT_TEMPLATE_KIND,
   TEXT_TEMPLATE_RENDERER_VERSION,
@@ -6,6 +5,7 @@ import {
   type TemplateControl,
   type TemplateDependencyManifest,
   type TemplateMetadata,
+  type TemplateNode,
   type TemplateRevision,
   type TemplateTiming,
   type TextTemplateArtifact,
@@ -37,52 +37,115 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function legacyLayerToNode(layer: any, index: number): SceneNode {
+function resolveDimension(raw: unknown, fallback: number): number | "auto" {
+  if (raw === "auto") return "auto";
+  if (raw == null) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function legacyLayerToNode(layer: any, index: number): TemplateNode {
   const id = String(layer?.id || `${layer?.kind || "node"}-${index + 1}`);
   const x = Number(layer?.x ?? layer?.relativePosition?.x ?? 0);
   const y = Number(layer?.y ?? layer?.relativePosition?.y ?? 0);
-  const width = Number(layer?.width ?? 400);
-  const height = Number(layer?.height ?? 120);
+  const width = resolveDimension(layer?.width, 400);
+  const height = resolveDimension(layer?.height, 120);
   const animation = layer?.animation;
+  const anchor = layer?.anchor;
+  const parentId = layer?.parentId;
 
   if (layer?.kind === "shape" || layer?.kind === "solid") {
     const shape = layer?.solidProperties || layer;
     return {
-      id, name: String(layer?.name || id), type: "shape", x, y, width, height,
-      shapeType: shape?.shape === "circle" ? "circle" : "rectangle",
-      style: { fillColor: String(shape?.fill ?? shape?.color ?? "#000000"), fillOpacity: Number(shape?.opacity ?? 1) },
+      id,
+      name: String(layer?.name || id),
+      type: "shape",
+      shapeType: shape?.shape === "circle" ? "circle" : shape?.shape === "line" ? "line" : "rectangle",
+      x,
+      y,
+      width: typeof width === "number" ? width : 400,
+      height: typeof height === "number" ? height : 200,
+      style: {
+        fillColor: String(shape?.fill ?? shape?.color ?? "#000000"),
+        fillOpacity: Number(shape?.opacity ?? 1),
+        strokeColor: shape?.stroke?.color ? String(shape.stroke.color) : undefined,
+        strokeWidth: shape?.stroke?.width ? Number(shape.stroke.width) : undefined,
+      },
       animation,
-    } as SceneNode;
+      anchor,
+      parentId,
+    };
   }
 
   if (layer?.kind === "image") {
     const image = layer?.imageProperties || layer;
     return {
-      id, name: String(layer?.name || id), type: "media", mediaType: "image", x, y, width, height,
-      assetId: image?.assetId, src: image?.url, style: { opacity: Number(image?.opacity ?? 1) }, animation,
-    } as SceneNode;
+      id,
+      name: String(layer?.name || id),
+      type: "media",
+      mediaType: "image",
+      x,
+      y,
+      width: typeof width === "number" ? width : 400,
+      height: typeof height === "number" ? height : 300,
+      assetId: image?.assetId,
+      src: image?.url,
+      style: { opacity: Number(image?.opacity ?? 1) },
+      animation,
+      anchor,
+      parentId,
+    };
   }
 
   const text = layer?.textProperties || layer;
   return {
-    id, name: String(layer?.name || id), type: "text", text: String(text?.content ?? text?.text ?? "Text"), x, y, width, height,
+    id,
+    name: String(layer?.name || id),
+    type: "text",
+    text: String(text?.content ?? text?.text ?? "Text"),
+    x,
+    y,
+    width,
+    height,
     animation,
+    anchor,
+    parentId,
     style: {
       fontFamily: String(text?.fontFamily || "Inter Variable"),
       fontSize: Number(text?.fontSize ?? 48),
       fontWeight: String(text?.fontWeight ?? 400),
-      textColor: String(text?.color || "#FFFFFF"),
-      textAlign: text?.align || "center",
+      textColor: String(text?.color || text?.textColor || "#FFFFFF"),
+      textAlign: text?.align || text?.textAlign || "center",
       lineHeight: Number(text?.lineHeight ?? 1.2),
       letterSpacing: Number(text?.letterSpacing ?? 0),
+      overflow: text?.overflow,
+      verticalAlign: text?.verticalAlign,
     },
+    backgroundPanel:
+      text?.backgroundColor || text?.backgroundPanel
+        ? {
+            color: text?.backgroundPanel?.color ?? text?.backgroundColor,
+            opacity: text?.backgroundPanel?.opacity ?? text?.backgroundOpacity ?? 1,
+            paddingTop: text?.backgroundPanel?.paddingTop ?? text?.paddingTop ?? 0,
+            paddingRight: text?.backgroundPanel?.paddingRight ?? text?.paddingRight ?? 0,
+            paddingBottom: text?.backgroundPanel?.paddingBottom ?? text?.paddingBottom ?? 0,
+            paddingLeft: text?.backgroundPanel?.paddingLeft ?? text?.paddingLeft ?? 0,
+            borderRadius: text?.backgroundPanel?.borderRadius ?? text?.backgroundRadius ?? 0,
+            borderColor: text?.backgroundPanel?.borderColor ?? text?.backgroundBorderColor,
+            borderWidth: text?.backgroundPanel?.borderWidth ?? text?.backgroundBorderWidth ?? 0,
+          }
+        : undefined,
+    spans: Array.isArray(text?.spans) ? clone(text.spans) : undefined,
+    perCharFillEnabled: Boolean(text?.perCharFillEnabled),
+    charFillColors: Array.isArray(text?.charFillColors) ? clone(text.charFillColors) : undefined,
+    splitAnimator: text?.splitAnimator ? clone(text.splitAnimator) : undefined,
     textEffectRef: text?.styleRef ? clone(text.styleRef) : undefined,
-  } as SceneNode;
+  };
 }
 
-function inferControls(nodes: SceneNode[]): TemplateControl[] {
+function inferControls(nodes: TemplateNode[]): TemplateControl[] {
   const controls: TemplateControl[] = [];
-  const visit = (node: any) => {
+  for (const node of nodes) {
     if (node.type === "text") {
       controls.push({
         id: `text-${node.id}`,
@@ -93,38 +156,48 @@ function inferControls(nodes: SceneNode[]): TemplateControl[] {
         target: { nodeId: node.id, propertyPath: "text" },
       });
     }
-    if (Array.isArray(node.children)) node.children.forEach(visit);
-  };
-  nodes.forEach(visit);
+  }
   return controls;
 }
 
-function collectDependencies(nodes: SceneNode[]): TemplateDependencyManifest {
+function collectDependencies(nodes: TemplateNode[]): TemplateDependencyManifest {
   const assets: any[] = [];
   const fonts: any[] = [];
   const textEffects: any[] = [];
   const seenAssets = new Set<string>();
   const seenFonts = new Set<string>();
   const seenEffects = new Set<string>();
-  const visit = (node: any) => {
-    if (node.assetId && !seenAssets.has(node.assetId)) {
-      assets.push({ assetId: node.assetId, kind: node.type === "video" ? "video" : "image", source: "remote" });
+
+  for (const node of nodes) {
+    if (node.type === "media" && node.assetId && !seenAssets.has(node.assetId)) {
+      assets.push({
+        id: node.assetId,
+        type: "image",
+        mimeType: "image/png",
+        uri: node.src || "",
+        contentHash: node.assetId,
+      });
       seenAssets.add(node.assetId);
     }
     if (node.type === "text" && node.style?.fontFamily) {
       const key = `${node.style.fontFamily}:${node.style.fontWeight || 400}`;
       if (!seenFonts.has(key)) {
-        fonts.push({ family: node.style.fontFamily, source: "system", weight: Number(node.style.fontWeight || 400), style: "normal" });
+        fonts.push({
+          family: node.style.fontFamily,
+          weight: Number(node.style.fontWeight || 400),
+          style: "normal",
+        });
         seenFonts.add(key);
       }
+      if (node.textEffectRef) {
+        const effectKey = `${node.textEffectRef.effectId}:${node.textEffectRef.revisionId}`;
+        if (!seenEffects.has(effectKey)) {
+          textEffects.push(clone(node.textEffectRef));
+          seenEffects.add(effectKey);
+        }
+      }
     }
-    if (node.textEffectRef) {
-      const key = `${node.textEffectRef.effectId}:${node.textEffectRef.revisionId}`;
-      if (!seenEffects.has(key)) { textEffects.push(clone(node.textEffectRef)); seenEffects.add(key); }
-    }
-    if (Array.isArray(node.children)) node.children.forEach(visit);
-  };
-  nodes.forEach(visit);
+  }
   return { assets, fonts, textEffects };
 }
 
@@ -132,8 +205,14 @@ export function normalizeTextTemplateArtifact(input: unknown): TextTemplateArtif
   if (!input || typeof input !== "object") throw new Error("Invalid text template artifact");
   const raw = input as any;
   const source = raw.document && typeof raw.document === "object" ? raw.document : raw;
-  const rawLayers = Array.isArray(source.layers) ? source.layers : Array.isArray(source.elements) ? source.elements : [];
-  const nodes: SceneNode[] = Array.isArray(source.nodes) ? clone(source.nodes) : rawLayers.map(legacyLayerToNode);
+  const rawLayers = Array.isArray(source.layers)
+    ? source.layers
+    : Array.isArray(source.elements)
+      ? source.elements
+      : [];
+  const nodes: TemplateNode[] = Array.isArray(source.nodes)
+    ? clone(source.nodes)
+    : rawLayers.map(legacyLayerToNode);
   const id = String(raw.metadata?.id ?? source.id ?? raw.id ?? "untitled-text-template");
   const label = String(raw.metadata?.label ?? source.title ?? raw.label ?? raw.name ?? id);
   const duration = Number(raw.timing?.duration ?? source.duration ?? raw.duration ?? 4);
@@ -141,37 +220,40 @@ export function normalizeTextTemplateArtifact(input: unknown): TextTemplateArtif
   const width = Number(source.canvas?.width ?? source.canvasWidth ?? raw.canvasWidth ?? raw.width ?? 1920);
   const height = Number(source.canvas?.height ?? source.canvasHeight ?? raw.canvasHeight ?? raw.height ?? 1080);
   const createdAt = String(raw.revision?.createdAt ?? source.createdAt ?? now());
+
   const document: TextTemplateDocument = {
     id,
-    version: "2.0",
     kind: TEXT_TEMPLATE_KIND,
     schemaVersion: TEXT_TEMPLATE_SCHEMA_VERSION,
     templateVersion: 1,
-    title: label,
-    description: String(raw.metadata?.description ?? source.description ?? raw.description ?? ""),
-    category: String(raw.metadata?.category ?? source.category ?? raw.category ?? "title-card"),
-    canvas: { width, height, backgroundColor: source.canvas?.backgroundColor ?? raw.backgroundColor },
-    variables: Array.isArray(source.variables) ? clone(source.variables) : [],
+    canvas: {
+      width,
+      height,
+      fps,
+      backgroundColor: source.canvas?.backgroundColor ?? raw.backgroundColor,
+    },
     nodes,
-    duration,
-    createdAt,
-    updatedAt: String(source.updatedAt ?? now()),
-    markers: Array.isArray(source.markers) ? clone(source.markers) : undefined,
-    assetManifest: source.assetManifest ? clone(source.assetManifest) : undefined,
-    breakpoints: source.breakpoints ? clone(source.breakpoints) : undefined,
+    variables: source.variables && typeof source.variables === "object" ? clone(source.variables) : undefined,
   };
-  const controls: TemplateControl[] = Array.isArray(raw.controls) ? clone(raw.controls) : inferControls(nodes);
+
+  const controls: TemplateControl[] = Array.isArray(raw.controls)
+    ? clone(raw.controls)
+    : inferControls(nodes);
+
   const timing: TemplateTiming = {
-    duration, fps,
+    duration,
+    fps,
     durationPolicy: raw.timing?.durationPolicy || "stretch",
     intro: raw.timing?.intro ? clone(raw.timing.intro) : undefined,
     outro: raw.timing?.outro ? clone(raw.timing.outro) : undefined,
     loop: raw.timing?.loop ? clone(raw.timing.loop) : undefined,
-    markers: Array.isArray(raw.timing?.markers) ? clone(raw.timing.markers) : document.markers,
+    markers: Array.isArray(raw.timing?.markers) ? clone(raw.timing.markers) : undefined,
   };
+
   const dependencies = raw.dependencies?.assets ? clone(raw.dependencies) : collectDependencies(nodes);
   const content = { document, controls, timing, dependencies };
   const contentHash = String(raw.revision?.contentHash || canonicalTemplateHash(content));
+
   const revision: TemplateRevision = {
     revisionId: String(raw.revision?.revisionId ?? raw.revisionId ?? `rev-${contentHash}`),
     contentHash,
@@ -180,15 +262,35 @@ export function normalizeTextTemplateArtifact(input: unknown): TextTemplateArtif
     createdAt,
     status: raw.revision?.status,
   };
+
   const metadata: TemplateMetadata = {
-    id, label, category: document.category,
-    description: document.description,
-    tags: Array.isArray(raw.metadata?.tags) ? clone(raw.metadata.tags) : Array.isArray(raw.tags) ? raw.tags.map(String) : [],
+    id,
+    label,
+    category: String(raw.metadata?.category ?? source.category ?? raw.category ?? "title-card"),
+    description: String(raw.metadata?.description ?? source.description ?? raw.description ?? ""),
+    tags: Array.isArray(raw.metadata?.tags)
+      ? clone(raw.metadata.tags)
+      : Array.isArray(raw.tags)
+        ? raw.tags.map(String)
+        : [],
     creatorName: raw.metadata?.creatorName ?? raw.creatorName,
     creatorLink: raw.metadata?.creatorLink ?? raw.creatorLink,
     thumbnailUrl: raw.previews?.thumbnailUrl ?? raw.thumbnail ?? raw.thumbnailUrl,
     previewVideoUrl: raw.previews?.previewVideoUrl ?? raw.preview ?? raw.previewVideoUrl,
   };
-  return { kind: TEXT_TEMPLATE_KIND, schemaVersion: TEXT_TEMPLATE_SCHEMA_VERSION, metadata, document, controls, timing, dependencies, revision,
-    previews: raw.previews || metadata.thumbnailUrl || metadata.previewVideoUrl ? { thumbnailUrl: metadata.thumbnailUrl, previewVideoUrl: metadata.previewVideoUrl } : undefined };
+
+  return {
+    kind: TEXT_TEMPLATE_KIND,
+    schemaVersion: TEXT_TEMPLATE_SCHEMA_VERSION,
+    metadata,
+    document,
+    controls,
+    timing,
+    dependencies,
+    revision,
+    previews:
+      raw.previews || metadata.thumbnailUrl || metadata.previewVideoUrl
+        ? { thumbnailUrl: metadata.thumbnailUrl, previewVideoUrl: metadata.previewVideoUrl }
+        : undefined,
+  };
 }
