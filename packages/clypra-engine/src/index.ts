@@ -50,6 +50,8 @@ export * from "./transitions";
 export * from "./templates/TemplateRenderer.js";
 export * from "./templates/presets.js";
 export * from "./templates/keyframes.js";
+export * from "./templates/textSplitter.js";
+export * from "./templates/responsiveLayout.js";
 export * from "./textTemplates/index.js";
 
 // Pipeline V2 (Media Processing Graph & Render Planner)

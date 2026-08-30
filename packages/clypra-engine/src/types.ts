@@ -394,7 +394,10 @@ export type TemplateCategory =
   | "caption"
   | "callout"
   | "social"
-  | "countdown";
+  | "countdown"
+  | "kinetic-type"
+  | "cta"
+  | "credits";
 
 export type AnimationPreset =
   | "fade"
@@ -407,6 +410,11 @@ export type AnimationPreset =
   | "blur-in"
   | "blur-out"
   | "typewriter"
+  | "3d-flip"
+  | "scale-pop"
+  | "track-in"
+  | "wave"
+  | "glitch"
   | "none";
 
 // Keyframe System Types for Templates
@@ -415,12 +423,30 @@ export type TemplateEasingFunction =
   | "ease-in-out"
   | "ease-in"
   | "ease-out"
-  | "ease";
+  | "ease"
+  | "cubic-bezier"
+  | "spring"
+  | "bounce";
+
+export interface BezierControlPoints {
+  x1: number; // 0.0 to 1.0
+  y1: number;
+  x2: number; // 0.0 to 1.0
+  y2: number;
+}
+
+export interface SpringParams {
+  damping?: number;
+  stiffness?: number;
+  mass?: number;
+}
 
 export interface TemplateKeyframe<T> {
   time: number; // Time in seconds
   value: T;
   easing?: TemplateEasingFunction;
+  bezier?: BezierControlPoints;
+  spring?: SpringParams;
 }
 
 export type AnimatableValue<T> = T | { keyframes: TemplateKeyframe<T>[] };
@@ -433,6 +459,95 @@ export interface LayerAnimation {
   hold: "full" | number;
 }
 
+export interface TextStyleSpan {
+  start: number; // Character index start (inclusive)
+  end: number;   // Character index end (exclusive)
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  fontStyle?: "normal" | "italic";
+  color?: string;
+  gradient?: { angle: number; stops: Array<{ color: string; offset: number }> };
+  letterSpacing?: number;
+  baselineShift?: number; // Vertical offset in px
+  opacity?: number;
+}
+
+export type SplitMode = "character" | "word" | "line";
+export type StaggerDirection = "start-to-end" | "end-to-start" | "center-out" | "edges-in" | "random";
+
+export interface TextSplitTransform {
+  x?: number;
+  y?: number;
+  z?: number;
+  scale?: number;
+  scaleX?: number;
+  scaleY?: number;
+  rotation?: number;
+  rotateX?: number;
+  rotateY?: number;
+  opacity?: number;
+  blur?: number;
+  letterSpacingOffset?: number;
+}
+
+export interface TextSplitAnimator {
+  splitBy: SplitMode;
+  direction: StaggerDirection;
+  delayPerUnit: number; // e.g. 0.04s per character
+  overlap: number;      // 0.0 to 1.0
+  randomSeed?: number;
+  initialTransform: TextSplitTransform;
+  easing?: TemplateEasingFunction;
+  bezier?: BezierControlPoints;
+  durationPerUnit?: number;
+}
+
+export type SpatialAnchorPoint =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "middle-left"
+  | "center"
+  | "middle-right"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
+
+export interface ResponsiveAnchorConfig {
+  anchorPoint: SpatialAnchorPoint;
+  offsetPercentageX?: number;
+  offsetPercentageY?: number;
+  pixelOffsetX?: number;
+  pixelOffsetY?: number;
+  maxWidthPercentage?: number;
+}
+
+export type TemplateVariableType =
+  | "string"
+  | "number"
+  | "color"
+  | "boolean"
+  | "timecode"
+  | "counter"
+  | "image"
+  | "dataset-row";
+
+export interface TemplateVariableDefinition {
+  key: string;
+  label: string;
+  type: TemplateVariableType;
+  defaultValue: any;
+  description?: string;
+  category?: "content" | "style" | "timing";
+  constraints?: {
+    min?: number;
+    max?: number;
+    options?: Array<{ label: string; value: any }>;
+    format?: string;
+  };
+}
+
 export interface TemplateTextLayer {
   kind: "text";
   id: string;
@@ -441,6 +556,8 @@ export interface TemplateTextLayer {
   fontSize: AnimatableValue<number>;
   fontWeight: AnimatableValue<number>; // 100-900
   color: AnimatableValue<string>;
+  letterSpacing?: AnimatableValue<number>;
+  lineHeight?: AnimatableValue<number>;
   align: "left" | "center" | "right";
   x: AnimatableValue<number>;
   y: AnimatableValue<number>;
@@ -474,8 +591,20 @@ export interface TemplateTextLayer {
   };
   overflow?: "wrap" | "shrink" | "expand-panel" | "clip";
   verticalAlign?: "top" | "middle" | "bottom";
+  /** Explicit layer visibility. Defaults to true. */
+  visible?: boolean;
   /** Studio-only UI state; ignored by render/export. */
   _paddingLinked?: boolean;
+  /** Per-character and span-level formatting */
+  spans?: TextStyleSpan[];
+  perCharFillEnabled?: boolean;
+  charFillColors?: string[];
+  /** Kinetic text splitting animator */
+  splitAnimator?: TextSplitAnimator;
+  /** Responsive layout anchor across aspect ratios */
+  anchor?: ResponsiveAnchorConfig;
+  /** Group / Parent identifier for inherited transforms */
+  parentId?: string;
 }
 
 export interface TemplateShapeLayer {
@@ -488,8 +617,12 @@ export interface TemplateShapeLayer {
   y: AnimatableValue<number>;
   width: AnimatableValue<number>;
   height: AnimatableValue<number>;
-  opacity?: AnimatableValue<number>; // 0-1, controls layer visibility
+  opacity?: AnimatableValue<number>; // 0-1, controls layer opacity
+  /** Explicit layer visibility. Defaults to true. */
+  visible?: boolean;
   animation: LayerAnimation;
+  anchor?: ResponsiveAnchorConfig;
+  parentId?: string;
 }
 
 export interface TemplateImageLayer {
@@ -500,26 +633,53 @@ export interface TemplateImageLayer {
   y: AnimatableValue<number>;
   width: AnimatableValue<number>;
   height: AnimatableValue<number>;
-  opacity?: AnimatableValue<number>; // 0-1, controls layer visibility
+  opacity?: AnimatableValue<number>; // 0-1, controls layer opacity
+  /** Explicit layer visibility. Defaults to true. */
+  visible?: boolean;
   animation: LayerAnimation;
+  anchor?: ResponsiveAnchorConfig;
+  parentId?: string;
 }
 
-export interface TemplateImageLayer {
-  kind: "image";
+export interface TemplateFlexLayout {
+  type: "flex" | "absolute";
+  direction: "row" | "column";
+  gap: AnimatableValue<number>;
+  alignItems: "start" | "center" | "end" | "stretch";
+  justifyContent: "start" | "center" | "end" | "space-between" | "space-around";
+  paddingTop?: AnimatableValue<number>;
+  paddingRight?: AnimatableValue<number>;
+  paddingBottom?: AnimatableValue<number>;
+  paddingLeft?: AnimatableValue<number>;
+}
+
+export interface TemplateContainerLayer {
+  kind: "container";
   id: string;
-  url: string;
+  name?: string;
+  layout: TemplateFlexLayout;
   x: AnimatableValue<number>;
   y: AnimatableValue<number>;
-  width: AnimatableValue<number>;
-  height: AnimatableValue<number>;
-  opacity?: AnimatableValue<number>; // 0-1, controls layer visibility
+  width: AnimatableValue<number | "auto">;
+  height: AnimatableValue<number | "auto">;
+  backgroundColor?: AnimatableValue<string>;
+  backgroundOpacity?: AnimatableValue<number>;
+  backgroundRadius?: AnimatableValue<number>;
+  backgroundBorderColor?: AnimatableValue<string>;
+  backgroundBorderWidth?: AnimatableValue<number>;
+  opacity?: AnimatableValue<number>; // 0-1, controls layer opacity
+  /** Explicit layer visibility. Defaults to true. */
+  visible?: boolean;
   animation: LayerAnimation;
+  anchor?: ResponsiveAnchorConfig;
+  parentId?: string;
 }
 
 export type TemplateLayer =
   | TemplateTextLayer
   | TemplateShapeLayer
-  | TemplateImageLayer;
+  | TemplateImageLayer
+  | TemplateContainerLayer;
 
 export interface TextTemplate {
   id: string;
@@ -530,9 +690,11 @@ export interface TextTemplate {
   fps?: number;
   canvasWidth: number;
   canvasHeight: number;
+  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:5";
   thumbnail?: string;
   preview?: string;
   layers: TemplateLayer[];
+  variables?: Record<string, TemplateVariableDefinition>;
   dependencies?: Array<{
     effectId: string;
     revisionId: string;
