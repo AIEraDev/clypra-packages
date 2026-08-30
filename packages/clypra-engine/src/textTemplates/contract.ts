@@ -167,6 +167,7 @@ export interface TemplateTextNode {
   y: number;
   width: number | "auto";
   height: number | "auto";
+  visible?: boolean;
   style: TemplateTextNodeStyle;
   backgroundPanel?: TemplateBackgroundPanel;
   animation?: LayerAnimation;
@@ -200,6 +201,7 @@ export interface TemplateShapeNode {
   y: number;
   width: number;
   height: number;
+  visible?: boolean;
   style: TemplateShapeNodeStyle;
   animation?: LayerAnimation;
   anchor?: ResponsiveAnchorConfig;
@@ -215,6 +217,7 @@ export interface TemplateImageNode {
   y: number;
   width: number;
   height: number;
+  visible?: boolean;
   assetId?: string;
   src?: string;
   style?: {
@@ -225,7 +228,48 @@ export interface TemplateImageNode {
   parentId?: string;
 }
 
-export type TemplateNode = TemplateTextNode | TemplateShapeNode | TemplateImageNode;
+export interface TextTemplateFlexLayout {
+  type: "flex" | "absolute";
+  direction: "row" | "column";
+  gap: number;
+  alignItems: "start" | "center" | "end" | "stretch";
+  justifyContent: "start" | "center" | "end" | "space-between" | "space-around";
+  paddingTop?: number;
+  paddingRight?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+}
+
+export interface TemplateContainerNodeStyle {
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  borderRadius?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  opacity?: number;
+}
+
+export interface TemplateContainerNode {
+  id: string;
+  name?: string;
+  type: "container";
+  layout: TextTemplateFlexLayout;
+  x: number;
+  y: number;
+  width: number | "auto";
+  height: number | "auto";
+  visible?: boolean;
+  style?: TemplateContainerNodeStyle;
+  animation?: LayerAnimation;
+  anchor?: ResponsiveAnchorConfig;
+  parentId?: string;
+}
+
+export type TemplateNode =
+  | TemplateTextNode
+  | TemplateShapeNode
+  | TemplateImageNode
+  | TemplateContainerNode;
 
 export interface TextTemplateCanvas {
   width: number;

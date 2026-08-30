@@ -4,6 +4,7 @@ import { canonicalTemplateHash } from "./normalize.js";
 import type {
   CompiledTemplateRenderLayer,
   CompiledTextTemplate,
+  TemplateContainerNode,
   TemplateControl,
   TemplateNode,
   TemplateRenderContext,
@@ -156,6 +157,14 @@ function applyAnimationPreset(
       opacity = p;
       y = Math.sin(p * Math.PI) * -15;
       break;
+    case "track-in":
+      opacity = p;
+      blur = (1 - p) * 8;
+      break;
+    case "glitch":
+      opacity = p > 0.05 ? 1 : 0;
+      x = Math.sin(p * 25) * 6 * (1 - p);
+      break;
     case "none":
     default:
       break;
@@ -198,29 +207,129 @@ export function compileTextTemplate(
 
   const time = mapTime(context.time, artifact, context.clipDuration);
 
+  // Flex layout resolution for container nodes
+  const flexPositions = new Map<string, { x: number; y: number; width: number; height: number }>();
+  const containers = (document.nodes || []).filter((n): n is TemplateContainerNode => n.type === "container");
+
+  for (const container of containers) {
+    const children = (document.nodes || []).filter((n) => n.parentId === container.id && n.visible !== false);
+    const layout = container.layout || { type: "flex", direction: "column", gap: 0, alignItems: "start", justifyContent: "start" };
+    const direction = layout.direction || "column";
+    const gap = layout.gap || 0;
+    const padTop = layout.paddingTop || 0;
+    const padRight = layout.paddingRight || 0;
+    const padBottom = layout.paddingBottom || 0;
+    const padLeft = layout.paddingLeft || 0;
+    const alignItems = layout.alignItems || "center";
+
+    const containerX = container.x;
+    const containerY = container.y;
+
+    if (direction === "column") {
+      let totalChildHeight = 0;
+      let maxChildWidth = 0;
+      const childSizes: { id: string; width: number; height: number }[] = [];
+
+      for (const child of children) {
+        const cw = child.width === "auto" ? 400 : Number(child.width);
+        const ch = child.height === "auto" ? 100 : Number(child.height);
+        childSizes.push({ id: child.id, width: cw, height: ch });
+        totalChildHeight += ch;
+        maxChildWidth = Math.max(maxChildWidth, cw);
+      }
+      if (children.length > 1) {
+        totalChildHeight += (children.length - 1) * gap;
+      }
+
+      const containerW = container.width === "auto" ? maxChildWidth + padLeft + padRight : Number(container.width);
+      const containerH = container.height === "auto" ? totalChildHeight + padTop + padBottom : Number(container.height);
+
+      flexPositions.set(container.id, { x: containerX, y: containerY, width: containerW, height: containerH });
+
+      let currentY = containerY + padTop;
+      const innerW = Math.max(0, containerW - padLeft - padRight);
+
+      for (const child of childSizes) {
+        let childX = containerX + padLeft;
+        if (alignItems === "center") {
+          childX = containerX + padLeft + (innerW - child.width) / 2;
+        } else if (alignItems === "end") {
+          childX = containerX + padLeft + (innerW - child.width);
+        } else if (alignItems === "stretch") {
+          child.width = innerW;
+        }
+
+        flexPositions.set(child.id, { x: childX, y: currentY, width: child.width, height: child.height });
+        currentY += child.height + gap;
+      }
+    } else {
+      let totalChildWidth = 0;
+      let maxChildHeight = 0;
+      const childSizes: { id: string; width: number; height: number }[] = [];
+
+      for (const child of children) {
+        const cw = child.width === "auto" ? 400 : Number(child.width);
+        const ch = child.height === "auto" ? 100 : Number(child.height);
+        childSizes.push({ id: child.id, width: cw, height: ch });
+        totalChildWidth += cw;
+        maxChildHeight = Math.max(maxChildHeight, ch);
+      }
+      if (children.length > 1) {
+        totalChildWidth += (children.length - 1) * gap;
+      }
+
+      const containerW = container.width === "auto" ? totalChildWidth + padLeft + padRight : Number(container.width);
+      const containerH = container.height === "auto" ? maxChildHeight + padTop + padBottom : Number(container.height);
+
+      flexPositions.set(container.id, { x: containerX, y: containerY, width: containerW, height: containerH });
+
+      let currentX = containerX + padLeft;
+      const innerH = Math.max(0, containerH - padTop - padBottom);
+
+      for (const child of childSizes) {
+        let childY = containerY + padTop;
+        if (alignItems === "center") {
+          childY = containerY + padTop + (innerH - child.height) / 2;
+        } else if (alignItems === "end") {
+          childY = containerY + padTop + (innerH - child.height);
+        } else if (alignItems === "stretch") {
+          child.height = innerH;
+        }
+
+        flexPositions.set(child.id, { x: currentX, y: childY, width: child.width, height: child.height });
+        currentX += child.width + gap;
+      }
+    }
+  }
+
   const layers: CompiledTemplateRenderLayer[] = (document.nodes || []).map((node) => {
     const animState = computeNodeAnimationState(node.animation, time, artifact.timing.duration);
-    const resolvedWidth = node.width === "auto" ? 400 : Number(node.width);
-    const resolvedHeight = node.height === "auto" ? 100 : Number(node.height);
+    const flexPos = flexPositions.get(node.id);
+    const baseX = flexPos?.x ?? node.x;
+    const baseY = flexPos?.y ?? node.y;
+    const resolvedWidth = flexPos?.width ?? (node.width === "auto" ? 400 : Number(node.width));
+    const resolvedHeight = flexPos?.height ?? (node.height === "auto" ? 100 : Number(node.height));
 
     const baseOpacity =
       node.type === "shape"
         ? (node.style.fillOpacity ?? 1)
         : node.type === "media"
           ? (node.style?.opacity ?? 1)
-          : 1;
+          : node.type === "container"
+            ? (node.style?.opacity ?? 1)
+            : 1;
 
     return {
       id: node.id,
       type: node.type,
       parentId: node.parentId,
-      x: node.x + animState.x,
-      y: node.y + animState.y,
+      x: baseX + animState.x,
+      y: baseY + animState.y,
       width: resolvedWidth * animState.scale,
       height: resolvedHeight * animState.scale,
       rotation: 0,
-      opacity: animState.opacity * baseOpacity,
-      visible: animState.opacity > 0,
+      opacity: node.visible === false ? 0 : animState.opacity * baseOpacity,
+      visible: node.visible !== false && animState.opacity > 0,
       text: node.type === "text" ? node.text : undefined,
       assetId: node.type === "media" ? node.assetId : undefined,
       mediaUrl: node.type === "media" ? node.src : undefined,

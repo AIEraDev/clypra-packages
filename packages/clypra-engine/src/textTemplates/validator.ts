@@ -49,14 +49,14 @@ export function validateTextTemplateArtifact(artifact: TextTemplateArtifact): Te
       }
     }
 
-    // width and height: "auto" is valid on text nodes
+    // width and height: "auto" is valid on text and container nodes
     for (const [axis, value] of [["width", node.width], ["height", node.height]] as const) {
       if (value === "auto") {
-        if (node.type !== "text") {
+        if (node.type !== "text" && node.type !== "container") {
           diagnostics.push({
             severity: "error",
             code: "NODE_GEOMETRY_AUTO_NOT_SUPPORTED",
-            message: `Node ${node.id} (${node.type}) does not support auto ${axis} — only text nodes can use content-driven sizing`,
+            message: `Node ${node.id} (${node.type}) does not support auto ${axis} — only text and container nodes can use content-driven sizing`,
             nodeId: node.id,
           });
         }
