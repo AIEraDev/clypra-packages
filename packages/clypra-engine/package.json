@@ -36,6 +36,11 @@
       "import": "./dist/textEffects/index.js",
       "require": "./dist/textEffects/index.cjs"
     },
+    "./rendering": {
+      "types": "./dist/rendering/index.d.ts",
+      "import": "./dist/rendering/index.js",
+      "require": "./dist/rendering/index.cjs"
+    },
     "./effects/video": {
       "types": "./dist/videoEffects/index.d.ts",
       "import": "./dist/videoEffects/index.js",

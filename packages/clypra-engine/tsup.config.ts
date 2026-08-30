@@ -6,6 +6,7 @@ export default defineConfig({
     "src/transitions/index.ts",
     "src/videoEffects/index.ts",
     "src/textEffects/index.ts",
+    "src/rendering/index.ts",
     "src/v2/backends/index.ts",
     "src/v2/contract/index.ts",
   ],

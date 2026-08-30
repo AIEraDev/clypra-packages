@@ -53,6 +53,9 @@ export * from "./templates/keyframes.js";
 export * from "./templates/textSplitter.js";
 export * from "./templates/responsiveLayout.js";
 export * from "./textTemplates/index.js";
+// Canonical capability renderers. Editor and Studio integrations must use
+// this facade so template/effect semantics cannot diverge by environment.
+export * from "./rendering/index.js";
 
 // Pipeline V2 (Media Processing Graph & Render Planner)
 // Note: AssetKind is already exported from ./smartOverlays/index.js (overlayDocumentSchema).
