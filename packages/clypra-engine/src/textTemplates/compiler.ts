@@ -1,4 +1,4 @@
-import { cubicBezier } from "../templates/keyframes.js";
+import { cubicBezier, evaluateAnimatable } from "../templates/keyframes.js";
 import { assertValidTextTemplateArtifact } from "./validator.js";
 import { canonicalTemplateHash } from "./normalize.js";
 import type {
@@ -8,6 +8,8 @@ import type {
   TemplateControl,
   TemplateNode,
   TemplateRenderContext,
+  TemplateTextNode,
+  TemplateTextNodeStyle,
   TextTemplateArtifact,
 } from "./contract.js";
 
@@ -37,6 +39,48 @@ function setPath(target: any, path: string, value: unknown): void {
     cursor = cursor[part];
   }
   cursor[parts[parts.length - 1]] = value;
+}
+
+function finite(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function fallbackTextWidth(text: string, style: TemplateTextNodeStyle): number {
+  // Used only when a host cannot provide Canvas/Native font metrics. This is
+  // deterministic and intentionally conservative; real renderers provide
+  // measureText through runtime after loading the authored font.
+  const fontSize = Math.max(1, finite(style.fontSize, 48));
+  const letterSpacing = finite(style.letterSpacing, 0);
+  return Array.from(text).reduce((total) => total + fontSize * 0.55 + letterSpacing, 0);
+}
+
+function measureTextNode(node: TemplateTextNode, runtime: TemplateRenderContext["runtime"]): { width: number; height: number } {
+  const style = node.style;
+  const lines = String(node.text ?? "").split("\n");
+  const measure = runtime?.measureText;
+  const widths = lines.map((line) => {
+    const measured = measure?.(line, style)?.width;
+    return Number.isFinite(measured) ? Math.max(0, measured as number) : fallbackTextWidth(line, style);
+  });
+  const lineHeight = Math.max(1, finite(style.fontSize, 48) * finite(style.lineHeight, 1.2));
+  return {
+    width: Math.max(1, ...widths),
+    height: Math.max(1, lines.length * lineHeight),
+  };
+}
+
+function resolveNodeSize(node: TemplateNode, runtime: TemplateRenderContext["runtime"]): { width: number; height: number } {
+  if (node.type === "text") {
+    const measured = measureTextNode(node, runtime);
+    return {
+      width: node.width === "auto" ? measured.width : Math.max(1, finite(node.width, measured.width)),
+      height: node.height === "auto" ? measured.height : Math.max(1, finite(node.height, measured.height)),
+    };
+  }
+  return {
+    width: node.width === "auto" ? 0 : Math.max(1, finite(node.width, 1)),
+    height: node.height === "auto" ? 0 : Math.max(1, finite(node.height, 1)),
+  };
 }
 
 function resolveControls(
@@ -102,18 +146,27 @@ function applyAnimationPreset(
   preset: string,
   t: number,
   direction: "in" | "out",
-): { opacity: number; x: number; y: number; scale: number; blur: number } {
+): { opacity: number; x: number; y: number; scale: number; blur: number; typewriterProgress: number } {
   const ease = easeBezier(t);
+  const clamped = Math.max(0, Math.min(1, t));
   const p = direction === "in" ? ease : 1 - ease;
   let opacity = 1;
   let x = 0;
   let y = 0;
   let scale = 1;
   let blur = 0;
+  let typewriterProgress = 1;
 
   switch (preset) {
     case "fade":
       opacity = p;
+      break;
+    case "typewriter":
+      // Character reveals are authored as a linear count. Applying the
+      // positional ease curve here makes the reveal jump ahead of the
+      // timeline (and makes identical frame positions disagree with Studio's
+      // frame labels).
+      typewriterProgress = direction === "in" ? clamped : 1 - clamped;
       break;
     case "slide-up":
       opacity = p;
@@ -169,15 +222,15 @@ function applyAnimationPreset(
     default:
       break;
   }
-  return { opacity, x, y, scale, blur };
+  return { opacity, x, y, scale, blur, typewriterProgress };
 }
 
 function computeNodeAnimationState(
   animation: any,
   time: number,
   duration: number,
-): { opacity: number; x: number; y: number; scale: number; blur: number } {
-  if (!animation) return { opacity: 1, x: 0, y: 0, scale: 1, blur: 0 };
+): { opacity: number; x: number; y: number; scale: number; blur: number; typewriterProgress: number } {
+  if (!animation) return { opacity: 1, x: 0, y: 0, scale: 1, blur: 0, typewriterProgress: 1 };
   const inEnd = Number(animation.inDuration ?? 0);
   const outStart = duration - Number(animation.outDuration ?? 0);
 
@@ -189,7 +242,13 @@ function computeNodeAnimationState(
     return applyAnimationPreset(animation.out || "fade", t, "out");
   }
 
-  return { opacity: 1, x: 0, y: 0, scale: 1, blur: 0 };
+  return { opacity: 1, x: 0, y: 0, scale: 1, blur: 0, typewriterProgress: 1 };
+}
+
+function evaluateNodeProperty<T>(node: TemplateNode, property: string, fallback: T, time: number, duration: number): T {
+  const frames = (node.animation as any)?.propertyKeyframes?.[property];
+  if (!frames?.keyframes?.length) return fallback;
+  return evaluateAnimatable(frames, time, duration) as T;
 }
 
 export function compileTextTemplate(
@@ -231,8 +290,9 @@ export function compileTextTemplate(
       const childSizes: { id: string; width: number; height: number }[] = [];
 
       for (const child of children) {
-        const cw = child.width === "auto" ? 400 : Number(child.width);
-        const ch = child.height === "auto" ? 100 : Number(child.height);
+        const measured = resolveNodeSize(child, context.runtime);
+        const cw = measured.width;
+        const ch = measured.height;
         childSizes.push({ id: child.id, width: cw, height: ch });
         totalChildHeight += ch;
         maxChildWidth = Math.max(maxChildWidth, cw);
@@ -268,8 +328,9 @@ export function compileTextTemplate(
       const childSizes: { id: string; width: number; height: number }[] = [];
 
       for (const child of children) {
-        const cw = child.width === "auto" ? 400 : Number(child.width);
-        const ch = child.height === "auto" ? 100 : Number(child.height);
+        const measured = resolveNodeSize(child, context.runtime);
+        const cw = measured.width;
+        const ch = measured.height;
         childSizes.push({ id: child.id, width: cw, height: ch });
         totalChildWidth += cw;
         maxChildHeight = Math.max(maxChildHeight, ch);
@@ -304,11 +365,16 @@ export function compileTextTemplate(
 
   const layers: CompiledTemplateRenderLayer[] = (document.nodes || []).map((node) => {
     const animState = computeNodeAnimationState(node.animation, time, artifact.timing.duration);
+    const fullText = node.type === "text" ? node.text : undefined;
+    const visibleText = fullText === undefined
+      ? undefined
+      : Array.from(fullText).slice(0, Math.floor(fullText.length * animState.typewriterProgress)).join("");
     const flexPos = flexPositions.get(node.id);
-    const baseX = flexPos?.x ?? node.x;
-    const baseY = flexPos?.y ?? node.y;
-    const resolvedWidth = flexPos?.width ?? (node.width === "auto" ? 400 : Number(node.width));
-    const resolvedHeight = flexPos?.height ?? (node.height === "auto" ? 100 : Number(node.height));
+    const baseX = flexPos?.x ?? evaluateNodeProperty(node, "x", Number(node.x), time, artifact.timing.duration);
+    const baseY = flexPos?.y ?? evaluateNodeProperty(node, "y", Number(node.y), time, artifact.timing.duration);
+    const measuredSize = node.type === "text" ? measureTextNode(node, context.runtime) : undefined;
+    const resolvedWidth = flexPos?.width ?? (node.width === "auto" ? measuredSize?.width ?? 1 : evaluateNodeProperty(node, "width", Number(node.width), time, artifact.timing.duration));
+    const resolvedHeight = flexPos?.height ?? (node.height === "auto" ? measuredSize?.height ?? 1 : evaluateNodeProperty(node, "height", Number(node.height), time, artifact.timing.duration));
 
     const baseOpacity =
       node.type === "shape"
@@ -330,11 +396,21 @@ export function compileTextTemplate(
       rotation: 0,
       opacity: node.visible === false ? 0 : animState.opacity * baseOpacity,
       visible: node.visible !== false && animState.opacity > 0,
-      text: node.type === "text" ? node.text : undefined,
+      text: visibleText,
       assetId: node.type === "media" ? node.assetId : undefined,
       mediaUrl: node.type === "media" ? node.src : undefined,
       style: (node as any).style as Record<string, unknown>,
-      content: node.type === "text" ? { text: node.text } : undefined,
+      content: node.type === "text"
+        ? {
+            text: node.text,
+            backgroundPanel: (node as any).backgroundPanel,
+            splitAnimator: (node as any).splitAnimator,
+            typewriterProgress: animState.typewriterProgress,
+            splitProgress: Number(node.animation?.inDuration ?? 0) > 0
+              ? Math.max(0, Math.min(1, time / Number(node.animation?.inDuration)))
+              : 1,
+          }
+        : undefined,
     };
   });
 
