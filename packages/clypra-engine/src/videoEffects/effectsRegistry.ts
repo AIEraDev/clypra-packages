@@ -916,7 +916,7 @@ function imageDataToCanvas(imageData: ImageData): HTMLCanvasElement | OffscreenC
     canvas.height = imageData.height;
   }
   
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   if (ctx) {
     ctx.putImageData(imageData, 0, 0);
   }
@@ -970,7 +970,7 @@ function renderBodyOutline(ctx: CanvasRenderingContext2D, params: any, intensity
 
   if (bodyMask) {
     const maskCanvas = imageDataToCanvas(bodyMask);
-    const maskCtx = maskCanvas.getContext("2d");
+    const maskCtx = maskCanvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (maskCtx) {
       maskCtx.save();
       maskCtx.globalCompositeOperation = "source-in";
