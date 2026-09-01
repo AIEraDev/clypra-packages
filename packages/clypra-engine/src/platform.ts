@@ -21,13 +21,22 @@ let _ctxFilter: boolean | null = null;
 let _roundRect: boolean | null = null;
 let _letterSpacing: boolean | null = null;
 let _offscreenCanvas: boolean | null = null;
-function probe2d(): CanvasRenderingContext2D | null {
-  if (typeof document === "undefined") return null;
-  try {
-    return document.createElement("canvas").getContext("2d");
-  } catch {
-    return null;
+function probe2d(): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null {
+  if (typeof OffscreenCanvas !== "undefined") {
+    try {
+      return new OffscreenCanvas(1, 1).getContext("2d");
+    } catch {
+      // fall through
+    }
   }
+  if (typeof document !== "undefined") {
+    try {
+      return document.createElement("canvas").getContext("2d");
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
