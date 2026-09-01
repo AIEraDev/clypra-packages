@@ -112,29 +112,41 @@ function resolveControls(
 
 function mapTime(time: number, artifact: TextTemplateArtifact, clipDuration?: number): number {
   const duration = artifact.timing.duration;
-  let local = Math.max(0, Math.min(time, duration));
+  const targetDuration = clipDuration && clipDuration > 0 ? clipDuration : duration;
+  const localTime = Math.max(0, Math.min(time, targetDuration));
+
   if (
     artifact.timing.durationPolicy === "stretch" &&
-    clipDuration &&
-    clipDuration > 0 &&
-    clipDuration !== duration
+    targetDuration !== duration
   ) {
-    const intro = artifact.timing.intro;
-    const outro = artifact.timing.outro;
-    const protectedDuration = (intro?.end ?? 0) + (duration - (outro?.start ?? duration));
-    const flexibleDuration = Math.max(0, duration - protectedDuration);
-    const flexibleTarget = Math.max(0, clipDuration - protectedDuration);
-    if (flexibleDuration > 0 && local > (intro?.end ?? 0) && local < (outro?.start ?? duration)) {
-      local =
-        (intro?.end ?? 0) +
-        ((local - (intro?.end ?? 0)) / flexibleDuration) * flexibleTarget;
+    const introEnd = artifact.timing.intro?.end ?? 0;
+    const outroDuration = duration - (artifact.timing.outro?.start ?? duration);
+    const outroStartInTarget = targetDuration - outroDuration;
+
+    if (localTime <= introEnd) {
+      // Inside intro: 1-to-1 time mapping
+      return localTime;
+    } else if (localTime >= outroStartInTarget) {
+      // Inside outro: mapped to the outro region of authored template
+      const outroProgress = outroDuration > 0 ? (localTime - outroStartInTarget) / outroDuration : 1;
+      return (artifact.timing.outro?.start ?? duration) + outroProgress * outroDuration;
+    } else {
+      // Inside flexible middle: map [introEnd, outroStartInTarget] -> [introEnd, outroStart]
+      const flexibleTarget = Math.max(0.001, outroStartInTarget - introEnd);
+      const flexibleAuthored = Math.max(0, (artifact.timing.outro?.start ?? duration) - introEnd);
+      const progress = (localTime - introEnd) / flexibleTarget;
+      return introEnd + progress * flexibleAuthored;
     }
   }
-  const loop = artifact.timing.loop;
-  if (artifact.timing.durationPolicy === "loop" && loop && local > loop.start && loop.end > loop.start) {
-    local = loop.start + ((local - loop.start) % (loop.end - loop.start));
+
+  if (artifact.timing.durationPolicy === "loop") {
+    const loop = artifact.timing.loop;
+    if (loop && loop.end > loop.start && localTime > loop.start) {
+      return loop.start + ((localTime - loop.start) % (loop.end - loop.start));
+    }
   }
-  return Math.max(0, Math.min(local, duration));
+
+  return Math.max(0, Math.min(localTime, duration));
 }
 
 function easeBezier(t: number): number {
