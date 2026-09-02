@@ -261,7 +261,8 @@ function legacyLayerToNode(layer: any, index: number): TemplateNode {
     style: {
       fontFamily: resolveStringProperty(text?.fontFamily, "Inter Variable"),
       fontSize: resolveNumericProperty(text?.fontSize, 48),
-      fontWeight: resolveStringProperty(text?.fontWeight, "400"),
+      fontWeight: resolveAnimatableValue(text?.fontWeight, 400),
+      fontStyle: text?.fontStyle === "italic" ? "italic" : "normal",
       textColor: resolveStringProperty(
         text?.color ?? text?.textColor,
         "#FFFFFF",
