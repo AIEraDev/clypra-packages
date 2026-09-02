@@ -268,7 +268,15 @@ export const TemplateCategorySchema = z.enum([
   "caption",
   "callout",
   "social",
-  "countdown"
+  "countdown",
+  "kinetic-type",
+  "cta",
+  "credits",
+  "quotes",
+  "sports",
+  "gaming",
+  "news",
+  "minimal",
 ]);
 
 export const AnimationPresetSchema = z.enum([
