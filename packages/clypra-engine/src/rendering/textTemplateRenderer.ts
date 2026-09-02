@@ -121,13 +121,60 @@ function letterSpacedText(ctx: CanvasLike, text: string, x: number, y: number, m
   ctx.textAlign = align;
 }
 
+const FONT_ALIAS_MAP: Record<string, string> = {
+  "inter": "Inter Variable",
+  "inter variable": "Inter Variable",
+  "outfit": "Outfit Variable",
+  "outfit variable": "Outfit Variable",
+  "playfair display": "Playfair Display Variable",
+  "playfair display variable": "Playfair Display Variable",
+  "montserrat": "Montserrat Variable",
+  "montserrat variable": "Montserrat Variable",
+  "roboto": "Roboto Variable",
+  "roboto variable": "Roboto Variable",
+  "roboto condensed": "Roboto Condensed Variable",
+  "roboto condensed variable": "Roboto Condensed Variable",
+  "raleway": "Raleway Variable",
+  "raleway variable": "Raleway Variable",
+  "space grotesk": "Space Grotesk Variable",
+  "space grotesk variable": "Space Grotesk Variable",
+  "nunito": "Nunito Variable",
+  "nunito variable": "Nunito Variable",
+  "open sans": "Open Sans Variable",
+  "open sans variable": "Open Sans Variable",
+  "oswald": "Oswald Variable",
+  "oswald variable": "Oswald Variable",
+  "geist": "Geist Variable",
+  "geist variable": "Geist Variable",
+  "dancing script": "Dancing Script Variable",
+  "dancing script variable": "Dancing Script Variable",
+};
+
+export function resolveTemplateFontFamily(family?: string): string {
+  if (!family) return "sans-serif";
+  const clean = String(family).trim().replace(/^["']|["']$/g, "");
+  const lower = clean.toLowerCase();
+  return FONT_ALIAS_MAP[lower] || clean;
+}
+
+function constructFontStack(fontStyle: string | undefined, fontWeight: number | string | undefined, fontSize: number, rawFamily: string): string {
+  const canonical = resolveTemplateFontFamily(rawFamily);
+  const cleanRaw = String(rawFamily || "").trim().replace(/^["']|["']$/g, "");
+  const style = fontStyle === "italic" ? "italic" : "normal";
+  const weight = fontWeight ?? 400;
+  if (canonical && cleanRaw && canonical.toLowerCase() !== cleanRaw.toLowerCase()) {
+    return `${style} ${weight} ${fontSize}px "${canonical}", "${cleanRaw}", sans-serif`;
+  }
+  return `${style} ${weight} ${fontSize}px "${canonical || cleanRaw || 'sans-serif'}", sans-serif`;
+}
+
 function drawTextLayer(ctx: CanvasLike, layer: CompiledTemplateRenderLayer, style: TemplateTextNodeStyle): void {
   const text = layer.text ?? "";
   const fontSize = finite(style.fontSize, 48);
   const fontWeight = style.fontWeight ?? 400;
-  const fontStyle = "normal";
-  const fontFamily = String(style.fontFamily || "sans-serif").replace(/"/g, "");
-  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}"`;
+  const fontStyle = style.fontStyle || "normal";
+  const rawFamily = String(style.fontFamily || "sans-serif").replace(/"/g, "");
+  ctx.font = constructFontStack(fontStyle, fontWeight, fontSize, rawFamily);
   ctx.fillStyle = cssColor(style.textColor, "#FFFFFF");
   ctx.textAlign = style.textAlign ?? "left";
   ctx.textBaseline = style.verticalAlign === "top" ? "top" : style.verticalAlign === "bottom" ? "bottom" : "middle";
@@ -156,8 +203,10 @@ function drawSplitTextLayer(
 ): void {
   const text = layer.text ?? "";
   const fontSize = finite(style.fontSize, 48);
-  const fontFamily = String(style.fontFamily || "sans-serif").replace(/"/g, "");
-  ctx.font = `normal ${style.fontWeight ?? 400} ${fontSize}px "${fontFamily}"`;
+  const fontWeight = style.fontWeight ?? 400;
+  const fontStyle = style.fontStyle || "normal";
+  const rawFamily = String(style.fontFamily || "sans-serif").replace(/"/g, "");
+  ctx.font = constructFontStack(fontStyle, fontWeight, fontSize, rawFamily);
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   ctx.fillStyle = cssColor(style.textColor, "#FFFFFF");
@@ -253,9 +302,9 @@ export function renderTextTemplateToCanvas(
     // Measure with the exact Canvas context that will draw the layer. This
     // makes auto-sized nodes use loaded font metrics instead of a fixed box.
     measureText: (text: string, style: TemplateTextNodeStyle) => {
-      const family = String(style.fontFamily || "sans-serif").replace(/"/g, "");
+      const rawFamily = String(style.fontFamily || "sans-serif").replace(/"/g, "");
       ctx.save();
-      ctx.font = `${style.fontWeight ?? 400} ${finite(style.fontSize, 48)}px "${family}"`;
+      ctx.font = constructFontStack(style.fontStyle, style.fontWeight, finite(style.fontSize, 48), rawFamily);
       const width = ctx.measureText(text).width + Math.max(0, text.length - 1) * finite(style.letterSpacing, 0);
       ctx.restore();
       return { width };
