@@ -139,6 +139,7 @@ export interface TemplateTextNodeStyle {
   fontFamily: string;
   fontSize: number;
   fontWeight: string | number;
+  fontStyle?: "normal" | "italic";
   textColor: string;
   textAlign?: "left" | "center" | "right";
   lineHeight?: number;
