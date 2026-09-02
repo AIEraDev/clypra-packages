@@ -397,7 +397,12 @@ export type TemplateCategory =
   | "countdown"
   | "kinetic-type"
   | "cta"
-  | "credits";
+  | "credits"
+  | "quotes"
+  | "sports"
+  | "gaming"
+  | "news"
+  | "minimal";
 
 export type AnimationPreset =
   | "fade"
@@ -555,6 +560,7 @@ export interface TemplateTextLayer {
   fontFamily: string;
   fontSize: AnimatableValue<number>;
   fontWeight: AnimatableValue<number>; // 100-900
+  fontStyle?: "normal" | "italic";
   color: AnimatableValue<string>;
   letterSpacing?: AnimatableValue<number>;
   lineHeight?: AnimatableValue<number>;
