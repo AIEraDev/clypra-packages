@@ -103,6 +103,23 @@ describe("Professional Conform System: resolveConform", () => {
     expect(result.y).toBe((1080 - 400) / 2 - 30);
   });
 
+  it("handles stretch mode distorting non-matching aspect ratio to canvas", () => {
+    const conform: ClipConform = {
+      mode: "stretch",
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      userScale: 1,
+      userOffsetX: 0,
+      userOffsetY: 0,
+    };
+
+    const result = resolveConform(conform, canvasWidth, canvasHeight);
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
+    expect(result.x).toBe(0);
+    expect(result.y).toBe(0);
+  });
+
   it("handles invalid or zero source dimensions gracefully", () => {
     const conform: ClipConform = {
       mode: "fit",
