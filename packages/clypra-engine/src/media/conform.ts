@@ -1,4 +1,4 @@
-export type ConformMode = 'fit' | 'fill' | 'none' | 'smart';
+export type ConformMode = 'fit' | 'fill' | 'none' | 'smart' | 'stretch';
 
 export interface ClipConform {
   mode: ConformMode;
@@ -14,7 +14,7 @@ export interface ClipConform {
 /**
  * Computes a clip's final position/size against the project canvas.
  * This is the ONLY place fit math should happen — never inline at a render call site.
- * Mirrors FCP's Fit/Fill/None and Resolve's Scale-to-Fit exactly.
+ * Mirrors FCP's Fit/Fill/None/Stretch and Resolve's Scale-to-Fit/Fill/Stretch exactly.
  */
 export function resolveConform(
   conform: ClipConform,
@@ -25,6 +25,15 @@ export function resolveConform(
 
   if (!sw || !sh) {
     return { x: 0, y: 0, width: canvasWidth, height: canvasHeight };
+  }
+
+  if (mode === 'stretch') {
+    // Distort to canvas — non-uniform scale matching canvas bounds
+    const width = canvasWidth * userScale;
+    const height = canvasHeight * userScale;
+    const x = (canvasWidth - width) / 2 + userOffsetX;
+    const y = (canvasHeight - height) / 2 + userOffsetY;
+    return { x, y, width, height };
   }
 
   let baseScale: number;
