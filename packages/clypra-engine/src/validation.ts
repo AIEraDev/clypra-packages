@@ -180,6 +180,12 @@ export const BoundingBoxSchema = z.object({
 
 // ── Effect Full Definition Schema ───────────────────────────────────────────
 export const EffectFullDefinitionSchema = EffectIndexItemSchema.extend({
+  schemaVersion: z.number().optional(),
+  revisionId: z.string().optional(),
+  contentHash: z.string().optional(),
+  rendererVersion: z.string().optional(),
+  revision: z.record(z.string(), z.unknown()).optional(),
+  scene: z.any().optional(),
   version: z.string().optional(),
   description: z.string(),
   tags: z.array(z.string()),
