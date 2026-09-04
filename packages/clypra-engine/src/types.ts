@@ -384,6 +384,31 @@ export interface EvaluatedTextLayer {
     borderRadius: number;
   };
   readonly styleId?: string;
+  readonly styleVersion?: number;
+  readonly styleRevisionId?: string;
+  readonly styleContentHash?: string;
+  readonly styleSnapshot?: import("./engine/schema.js").SceneDocument;
+  readonly parameterOverrides?: Record<string, any>;
+  readonly styleDefinition?: TextEffectDefinition;
+  readonly templateId?: string;
+  readonly templateRevisionId?: string;
+  readonly templateContentHash?: string;
+  readonly templateSnapshot?: unknown;
+  readonly templateControlValues?: Record<string, unknown>;
+  readonly templateDependencySnapshot?: unknown;
+  readonly templateDependencies?: unknown;
+  readonly templateAnimated?: boolean;
+  readonly customization?: any;
+  readonly textRole?: "caption" | "title";
+  readonly maxWidth?: number;
+  readonly fontId?: string;
+  readonly runs?: ReadonlyArray<{
+    text: string;
+    color?: string;
+    highlighted?: boolean;
+  }>;
+  readonly animationOperation?: "render" | "entrance" | "exit" | "animation";
+  readonly animationType?: string;
 }
 
 // ─── Declarative Canvas Templates types ─────────────────────────────────────
@@ -557,6 +582,7 @@ export interface TemplateTextLayer {
   kind: "text";
   id: string;
   content: string;
+  fontId?: string;
   fontFamily: string;
   fontSize: AnimatableValue<number>;
   fontWeight: AnimatableValue<number>; // 100-900
@@ -572,6 +598,8 @@ export interface TemplateTextLayer {
   /** Panel height in px, or `"auto"` to size to measured ink height + vertical padding.
    *  When combined with `overflow: "wrap"`, the panel grows to fit all wrapped lines. */
   height: AnimatableValue<number> | "auto";
+  maxWidth?: number;
+  textRole?: "caption" | "title";
   opacity?: AnimatableValue<number>; // 0-1, controls layer visibility
   // Background panel
   backgroundColor?: AnimatableValue<string>;
@@ -597,6 +625,13 @@ export interface TemplateTextLayer {
   };
   overflow?: "wrap" | "shrink" | "expand-panel" | "clip";
   verticalAlign?: "top" | "middle" | "bottom";
+  stroke?: { color: AnimatableValue<string>; width: AnimatableValue<number> };
+  shadow?: {
+    color: AnimatableValue<string>;
+    blur: AnimatableValue<number>;
+    offsetX: AnimatableValue<number>;
+    offsetY: AnimatableValue<number>;
+  };
   /** Explicit layer visibility. Defaults to true. */
   visible?: boolean;
   /** Studio-only UI state; ignored by render/export. */
