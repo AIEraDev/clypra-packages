@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileTextTemplate } from "./compiler.js";
-import { normalizeTextTemplateArtifact } from "./normalize.js";
+import { normalizeTextTemplateArtifact, resolveTemplateControlValues } from "./normalize.js";
 import { validateTextTemplateArtifact } from "./validator.js";
 import { TEXT_TEMPLATE_SCHEMA_VERSION } from "./contract.js";
 
@@ -231,5 +231,74 @@ describe("canonical text templates", () => {
     expect(layer?.height).toBeCloseTo(57.6);
     expect(layer?.width).not.toBe(400);
     expect(layer?.height).not.toBe(100);
+  });
+
+  it("resolves control values canonically from customization and fallbackText", () => {
+    const artifact = normalizeTextTemplateArtifact({
+      id: "cust-test",
+      label: "Customization Test",
+      duration: 2,
+      layers: [
+        {
+          id: "primary-node",
+          kind: "text",
+          content: "Original Primary",
+          role: "primary",
+        },
+        {
+          id: "secondary-node",
+          kind: "text",
+          content: "Original Secondary",
+          role: "secondary",
+        },
+      ],
+    });
+
+    // Test explicit layerTexts
+    const values1 = resolveTemplateControlValues(artifact, {
+      layerTexts: { "primary-node": "Explicit Name" },
+      primaryText: "Ignored Name",
+    });
+    expect(values1["text-primary-node"]).toBe("Explicit Name");
+
+    // Test role-based customization
+    const values2 = resolveTemplateControlValues(artifact, {
+      primaryText: "Role Primary",
+      secondaryText: "Role Secondary",
+    });
+    expect(values2["text-primary-node"]).toBe("Role Primary");
+    expect(values2["text-secondary-node"]).toBe("Role Secondary");
+
+    // Test fallbackText on first node when no customization given
+    const values3 = resolveTemplateControlValues(artifact, null, "Timeline Clip Text");
+    expect(values3["text-primary-node"]).toBe("Timeline Clip Text");
+    expect(values3["text-secondary-node"]).toBe("Original Secondary");
+  });
+
+  it("normalizes stroke and shadow from legacy text layers", () => {
+    const artifact = normalizeTextTemplateArtifact({
+      id: "stroke-shadow-test",
+      label: "Stroke Shadow Test",
+      duration: 2,
+      layers: [
+        {
+          id: "styled-text",
+          kind: "text",
+          content: "Outlined",
+          stroke: { color: "#ff0000", width: 4 },
+          shadow: { color: "#000000", blur: 10, offsetX: 2, offsetY: 5 },
+        },
+      ],
+    });
+
+    const node = artifact.document.nodes[0] as any;
+    expect(node.style.stroke).toEqual({ color: "#ff0000", width: 4 });
+    expect(node.style.strokeColor).toBe("#ff0000");
+    expect(node.style.strokeWidth).toBe(4);
+    expect(node.style.shadow).toEqual({ color: "#000000", blur: 10, offsetX: 2, offsetY: 5 });
+    expect(node.style.shadowColor).toBe("#000000");
+    expect(node.style.shadowBlur).toBe(10);
+    expect(node.style.shadowOffsetX).toBe(2);
+    expect(node.style.shadowOffsetY).toBe(5);
   });
 });
