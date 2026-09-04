@@ -28,7 +28,7 @@
   "dependencies": {
     "@clypra-studio/types": "workspace:^0.5.0",
     "@clypra-studio/runtime": "workspace:^0.2.2",
-    "@clypra-studio/engine": "workspace:^1.4.0",
+    "@clypra-studio/engine": "workspace:^1.6.0",
     "@clypra/ui-color-picker": "^0.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
