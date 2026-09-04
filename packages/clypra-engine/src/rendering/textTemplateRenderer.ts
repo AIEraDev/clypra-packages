@@ -121,6 +121,33 @@ function letterSpacedText(ctx: CanvasLike, text: string, x: number, y: number, m
   ctx.textAlign = align;
 }
 
+function letterSpacedStrokeText(
+  ctx: CanvasLike,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  letterSpacing: number,
+): void {
+  if (!letterSpacing) {
+    ctx.strokeText(text, x, y, maxWidth);
+    return;
+  }
+  const glyphs = Array.from(text);
+  const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
+  const total = widths.reduce((sum, value) => sum + value, 0) + Math.max(0, glyphs.length - 1) * letterSpacing;
+  const align = ctx.textAlign;
+  let cursor = x;
+  if (align === "center") cursor -= total / 2;
+  if (align === "right") cursor -= total;
+  ctx.textAlign = "left";
+  for (let index = 0; index < glyphs.length; index += 1) {
+    ctx.strokeText(glyphs[index], cursor, y);
+    cursor += widths[index] + letterSpacing;
+  }
+  ctx.textAlign = align;
+}
+
 const FONT_ALIAS_MAP: Record<string, string> = {
   "inter": "Inter Variable",
   "inter variable": "Inter Variable",
@@ -179,6 +206,19 @@ function drawTextLayer(ctx: CanvasLike, layer: CompiledTemplateRenderLayer, styl
   ctx.textAlign = style.textAlign ?? "left";
   ctx.textBaseline = style.verticalAlign === "top" ? "top" : style.verticalAlign === "bottom" ? "bottom" : "middle";
 
+  const shadowColor = style.shadow?.color ?? style.shadowColor;
+  const shadowBlur = finite(style.shadow?.blur ?? style.shadowBlur, 0);
+  const shadowOffsetX = finite(style.shadow?.offsetX ?? style.shadowOffsetX, 0);
+  const shadowOffsetY = finite(style.shadow?.offsetY ?? style.shadowOffsetY, 0);
+  const hasShadow = !!shadowColor && (shadowBlur > 0 || shadowOffsetX !== 0 || shadowOffsetY !== 0);
+
+  if (hasShadow) {
+    ctx.shadowColor = cssColor(shadowColor, "#000000");
+    ctx.shadowBlur = shadowBlur;
+    ctx.shadowOffsetX = shadowOffsetX;
+    ctx.shadowOffsetY = shadowOffsetY;
+  }
+
   const lineHeight = fontSize * finite(style.lineHeight, 1.2);
   const maxWidth = Math.max(1, layer.width);
   const lines = style.overflow === "wrap" ? wrapText(ctx, text, maxWidth) : [text];
@@ -191,6 +231,24 @@ function drawTextLayer(ctx: CanvasLike, layer: CompiledTemplateRenderLayer, styl
   const anchorX = style.textAlign === "center" ? layer.x + layer.width / 2 : style.textAlign === "right" ? layer.x + layer.width : layer.x;
   for (let index = 0; index < lines.length; index += 1) {
     letterSpacedText(ctx, lines[index], anchorX, startY + index * lineHeight, maxWidth, finite(style.letterSpacing, 0));
+  }
+
+  if (hasShadow) {
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  const strokeColor = style.stroke?.color ?? style.strokeColor;
+  const strokeWidth = finite(style.stroke?.width ?? style.strokeWidth, 0);
+  if (strokeWidth > 0 && strokeColor) {
+    ctx.strokeStyle = cssColor(strokeColor, "#000000");
+    ctx.lineWidth = strokeWidth;
+    ctx.lineJoin = "round";
+    for (let index = 0; index < lines.length; index += 1) {
+      letterSpacedStrokeText(ctx, lines[index], anchorX, startY + index * lineHeight, maxWidth, finite(style.letterSpacing, 0));
+    }
   }
 }
 
