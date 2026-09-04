@@ -146,6 +146,47 @@ export interface TemplateTextNodeStyle {
   letterSpacing?: number;
   overflow?: "wrap" | "shrink" | "expand-panel" | "clip";
   verticalAlign?: "top" | "middle" | "bottom";
+  strokeColor?: string;
+  strokeWidth?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  stroke?: {
+    color: string;
+    width: number;
+  };
+  shadow?: {
+    color: string;
+    blur: number;
+    offsetX: number;
+    offsetY: number;
+  };
+  fontId?: string;
+  backgroundColor?: string;
+  background?: {
+    color: string;
+    padding: number;
+    borderRadius: number;
+  };
+}
+
+export interface TemplateCustomization {
+  primaryText?: string;
+  secondaryText?: string;
+  accentText?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  layerColors?: Record<string, string>;
+  layerFontSizes?: Record<string, number>;
+  layerFontWeights?: Record<string, string | number>;
+  layerTexts?: Record<string, string>;
+}
+
+export interface ResolveTemplateControlValuesOptions {
+  customization?: TemplateCustomization | null;
+  templateControlValues?: Record<string, unknown> | null;
+  fallbackText?: string;
 }
 
 export interface TemplateBackgroundPanel {
@@ -191,6 +232,10 @@ export interface TemplateTextNode {
     contentHash: string;
     snapshot?: unknown;
   };
+  role?: "primary" | "secondary" | "accent" | "none";
+  textRole?: "caption" | "title";
+  fontId?: string;
+  maxWidth?: number;
   parentId?: string;
 }
 
