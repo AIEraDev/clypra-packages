@@ -170,7 +170,7 @@ importers:
   packages/ui:
     dependencies:
       '@clypra-studio/engine':
-        specifier: workspace:^1.6.0
+        specifier: workspace:^1.7.0
         version: link:../clypra-engine
       '@clypra-studio/runtime':
         specifier: workspace:^0.2.2
