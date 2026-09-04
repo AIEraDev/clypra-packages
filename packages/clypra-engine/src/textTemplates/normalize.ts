@@ -11,6 +11,8 @@ import {
   type TextTemplateArtifact,
   type TextTemplateDocument,
   type TemplatePropertyKeyframes,
+  type TemplateCustomization,
+  type ResolveTemplateControlValuesOptions,
 } from "./contract.js";
 
 function clone<T>(value: T): T {
@@ -272,6 +274,47 @@ function legacyLayerToNode(layer: any, index: number): TemplateNode {
       letterSpacing: resolveNumericProperty(text?.letterSpacing, 0),
       overflow: text?.overflow,
       verticalAlign: text?.verticalAlign,
+      strokeColor: text?.stroke?.color ?? text?.strokeColor
+        ? resolveStringProperty(text?.stroke?.color ?? text?.strokeColor, "#000000")
+        : undefined,
+      strokeWidth: text?.stroke?.width ?? text?.strokeWidth
+        ? resolveNumericProperty(text?.stroke?.width ?? text?.strokeWidth, 0)
+        : undefined,
+      shadowColor: text?.shadow?.color ?? text?.shadowColor
+        ? resolveStringProperty(text?.shadow?.color ?? text?.shadowColor, "#000000")
+        : undefined,
+      shadowBlur: text?.shadow?.blur ?? text?.shadowBlur
+        ? resolveNumericProperty(text?.shadow?.blur ?? text?.shadowBlur, 0)
+        : undefined,
+      shadowOffsetX: text?.shadow?.offsetX ?? text?.shadowOffsetX
+        ? resolveNumericProperty(text?.shadow?.offsetX ?? text?.shadowOffsetX, 0)
+        : undefined,
+      shadowOffsetY: text?.shadow?.offsetY ?? text?.shadowOffsetY
+        ? resolveNumericProperty(text?.shadow?.offsetY ?? text?.shadowOffsetY, 0)
+        : undefined,
+      stroke: text?.stroke
+        ? {
+            color: resolveStringProperty(text.stroke.color, "#000000"),
+            width: resolveNumericProperty(text.stroke.width, 1),
+          }
+        : undefined,
+      shadow: text?.shadow
+        ? {
+            color: resolveStringProperty(text.shadow.color, "#000000"),
+            blur: resolveNumericProperty(text.shadow.blur, 0),
+            offsetX: resolveNumericProperty(text.shadow.offsetX, 0),
+            offsetY: resolveNumericProperty(text.shadow.offsetY, 0),
+          }
+        : undefined,
+      fontId: text?.fontId || layer?.fontId
+        ? resolveStringProperty(text?.fontId ?? layer?.fontId, "")
+        : undefined,
+      backgroundColor: text?.backgroundColor || layer?.backgroundColor
+        ? resolveStringProperty(text?.backgroundColor ?? layer?.backgroundColor, "")
+        : undefined,
+      background: text?.background || layer?.background
+        ? clone(text?.background ?? layer?.background)
+        : undefined,
     },
     backgroundPanel:
       text?.backgroundColor || text?.backgroundPanel
@@ -328,9 +371,14 @@ function legacyLayerToNode(layer: any, index: number): TemplateNode {
       : undefined,
     splitAnimator: text?.splitAnimator ? clone(text.splitAnimator) : undefined,
     textEffectRef: text?.styleRef ? clone(text.styleRef) : undefined,
-    // Kept as optional metadata for compatibility with role-based editor
-    // customizations. The canonical renderer does not depend on roles.
-    ...(layer?.role ? { role: String(layer.role) } : {}),
+    role: layer?.role || text?.role || text?.textRole
+      ? (String(layer?.role ?? text?.role ?? text?.textRole) as any)
+      : undefined,
+    textRole: text?.textRole || (layer?.role === "primary" || layer?.role === "secondary" ? "title" : undefined),
+    fontId: text?.fontId || layer?.fontId
+      ? resolveStringProperty(text?.fontId ?? layer?.fontId, "")
+      : undefined,
+    maxWidth: resolveNumericProperty(text?.maxWidth ?? layer?.maxWidth, 0) || undefined,
   } as TemplateNode;
 }
 
@@ -539,3 +587,98 @@ export function normalizeTextTemplateArtifact(
         : undefined,
   };
 }
+
+/**
+ * Canonical resolution of text template control values.
+ *
+ * Single Source of Truth (SSOT) across all template rasterization paths:
+ *   - Main-thread Canvas renderer
+ *   - OffscreenCanvas worker client
+ *   - Template instantiator & clip evaluator
+ *   - Video frame exporter
+ *   - Studio preview & catalog renderer
+ */
+export function resolveTemplateControlValues(
+  artifact: TextTemplateArtifact | null | undefined,
+  optionsOrCustomization?:
+    | ResolveTemplateControlValuesOptions
+    | TemplateCustomization
+    | null,
+  fallbackText?: string,
+): Record<string, unknown> {
+  if (!artifact?.controls) return {};
+
+  const options: ResolveTemplateControlValuesOptions =
+    optionsOrCustomization &&
+    ("customization" in optionsOrCustomization ||
+      "templateControlValues" in optionsOrCustomization ||
+      "fallbackText" in optionsOrCustomization)
+      ? (optionsOrCustomization as ResolveTemplateControlValuesOptions)
+      : {
+          customization: optionsOrCustomization as TemplateCustomization | null,
+          fallbackText,
+        };
+
+  const customization = options.customization;
+  const existingValues = options.templateControlValues;
+  const targetFallbackText = options.fallbackText;
+
+  const firstTextNode = artifact.document?.nodes?.find(
+    (candidate: any) => candidate.type === "text",
+  );
+
+  const values: Record<string, unknown> = { ...(existingValues || {}) };
+
+  for (const control of artifact.controls) {
+    if (control.type !== "text" && control.type !== "color") continue;
+
+    const node = artifact.document?.nodes?.find(
+      (candidate: any) => candidate.id === control.target.nodeId,
+    ) as any;
+    const role: string = node?.role || "";
+    const labelLower = (control.label || "").toLowerCase();
+
+    if (control.type === "text") {
+      const explicitText = customization?.layerTexts?.[control.target.nodeId];
+      let roleText: string | undefined;
+      if (role === "primary" || labelLower.includes("primary")) {
+        roleText = customization?.primaryText;
+      } else if (role === "secondary" || labelLower.includes("secondary")) {
+        roleText = customization?.secondaryText;
+      } else if (role === "accent" || labelLower.includes("accent")) {
+        roleText = customization?.accentText;
+      }
+
+      const firstNodeFallback =
+        targetFallbackText !== undefined &&
+        firstTextNode &&
+        control.target.nodeId === firstTextNode.id
+          ? targetFallbackText
+          : undefined;
+
+      values[control.id] =
+        explicitText ??
+        roleText ??
+        firstNodeFallback ??
+        values[control.id] ??
+        control.defaultValue;
+    } else if (control.type === "color") {
+      const explicitColor = customization?.layerColors?.[control.target.nodeId];
+      let roleColor: string | undefined;
+      if (role === "secondary" || labelLower.includes("secondary")) {
+        roleColor = customization?.secondaryColor;
+      } else {
+        roleColor = customization?.primaryColor;
+      }
+
+      values[control.id] =
+        explicitColor ??
+        roleColor ??
+        values[control.id] ??
+        control.defaultValue;
+    }
+  }
+
+  return values;
+}
+
