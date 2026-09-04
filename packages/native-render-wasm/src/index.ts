@@ -284,3 +284,34 @@ export async function renderFrame(
 export function isRendererReady(): boolean {
   return renderer !== null;
 }
+
+/**
+ * Register a font with the WASM compositor's font registry.
+ *
+ * Must be called after `probeNativeRenderer()` or `renderFrame()` has resolved
+ * (i.e. after WASM is initialised), or this call will trigger initialisation.
+ *
+ * @param fontId   Stable lowercase-kebab font identifier, e.g. `"inter-variable"`.
+ * @param fontBytes Raw bytes of a TrueType (.ttf), OpenType (.otf), or TTC font file.
+ * @returns The 64-bit FNV-1a content hash of the registered font as a `bigint`.
+ */
+export async function registerFont(
+  fontId: string,
+  fontBytes: Uint8Array,
+): Promise<bigint> {
+  const r = await getRenderer();
+  // register_font returns a u64 — wasm-bindgen maps this to a JS BigInt.
+  const hash = r.register_font(fontId, fontBytes);
+  return BigInt(hash as unknown as string);
+}
+
+/**
+ * List all font IDs currently registered in the WASM font registry.
+ * Useful for debugging and pre-flight font checks.
+ */
+export async function listFonts(): Promise<string[]> {
+  const r = await getRenderer();
+  // list_fonts returns a js_sys::Array of JsValue strings.
+  const arr = r.list_fonts() as unknown as string[];
+  return Array.from(arr);
+}
