@@ -143,6 +143,19 @@ export interface NodeStyle {
   minFontSize?: number;
   /** Vertical baseline alignment */
   baseline?: BaselineAlignment;
+  /** Vertical alignment */
+  verticalAlign?: "top" | "middle" | "bottom";
+  /** Background highlight */
+  backgroundColor?: string;
+  background?: {
+    color: string;
+    padding: number;
+    borderRadius: number;
+  };
+  stroke?: {
+    color: string;
+    width: number;
+  };
   /** Tabular numerals for fixed-width digits */
   tabularNums?: boolean;
   /** Font registry reference */
@@ -248,6 +261,9 @@ export interface SceneNodeBase {
 export interface PrimitiveTextNode extends SceneNodeBase {
   type: "text";
   text: string;
+  fontId?: string;
+  textRole?: "caption" | "title";
+  maxWidth?: number;
   overflow?: TextOverflowPolicy;
   maxLines?: number;
   minFontSize?: number;
