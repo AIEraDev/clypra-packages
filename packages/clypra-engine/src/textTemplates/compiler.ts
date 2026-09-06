@@ -276,6 +276,26 @@ export function compileTextTemplate(
     if (node) setPath(node, control.target.propertyPath, resolvedControls[control.id]);
   }
 
+  // Also apply direct text, font, and color overrides from context.controlValues
+  if (context.controlValues) {
+    for (const node of document.nodes || []) {
+      if (node.type === "text") {
+        const textVal = context.controlValues[`text-${node.id}`];
+        if (typeof textVal === "string") {
+          node.text = textVal;
+        }
+        const fontVal = context.controlValues[`font-${node.id}`];
+        if (typeof fontVal === "string") {
+          node.style = { ...node.style, fontFamily: fontVal };
+        }
+        const colorVal = context.controlValues[`color-${node.id}`];
+        if (typeof colorVal === "string") {
+          node.style = { ...node.style, textColor: colorVal };
+        }
+      }
+    }
+  }
+
   const time = mapTime(context.time, artifact, context.clipDuration);
 
   // Flex layout resolution for container nodes

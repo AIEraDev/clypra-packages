@@ -177,9 +177,12 @@ export interface TemplateCustomization {
   accentText?: string;
   primaryColor?: string;
   secondaryColor?: string;
+  primaryFontFamily?: string;
+  secondaryFontFamily?: string;
   layerColors?: Record<string, string>;
   layerFontSizes?: Record<string, number>;
   layerFontWeights?: Record<string, string | number>;
+  layerFontFamilies?: Record<string, string>;
   layerTexts?: Record<string, string>;
 }
 

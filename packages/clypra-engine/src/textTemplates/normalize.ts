@@ -629,8 +629,8 @@ export function resolveTemplateControlValues(
 
   const values: Record<string, unknown> = { ...(existingValues || {}) };
 
-  for (const control of artifact.controls) {
-    if (control.type !== "text" && control.type !== "color") continue;
+  for (const control of artifact.controls || []) {
+    if (control.type !== "text" && control.type !== "color" && control.type !== "font") continue;
 
     const node = artifact.document?.nodes?.find(
       (candidate: any) => candidate.id === control.target.nodeId,
@@ -676,6 +676,80 @@ export function resolveTemplateControlValues(
         roleColor ??
         values[control.id] ??
         control.defaultValue;
+    } else if (control.type === "font") {
+      const explicitFont = customization?.layerFontFamilies?.[control.target.nodeId];
+      let roleFont: string | undefined;
+      if (role === "secondary" || labelLower.includes("secondary")) {
+        roleFont = customization?.secondaryFontFamily;
+      } else {
+        roleFont = customization?.primaryFontFamily;
+      }
+
+      values[control.id] =
+        explicitFont ??
+        roleFont ??
+        values[control.id] ??
+        control.defaultValue;
+    }
+  }
+
+  // Populate direct node control keys (`text-${nodeId}`, `font-${nodeId}`, `color-${nodeId}`)
+  // so any text node in the document can be styled dynamically regardless of whether the
+  // artifact author explicitly enumerated an authored control for it.
+  for (const node of artifact.document?.nodes || []) {
+    if (node.type === "text") {
+      const role: string = (node as any).role || "";
+      const textKey = `text-${node.id}`;
+      const fontKey = `font-${node.id}`;
+      const colorKey = `color-${node.id}`;
+
+      // Text
+      const explicitText = customization?.layerTexts?.[node.id];
+      const roleText =
+        role === "secondary"
+          ? customization?.secondaryText
+          : role === "accent"
+            ? customization?.accentText
+            : customization?.primaryText;
+      const resolvedText =
+        explicitText ??
+        roleText ??
+        (firstTextNode && node.id === firstTextNode.id ? targetFallbackText : undefined) ??
+        values[textKey] ??
+        (node as any).text;
+      if (resolvedText !== undefined) {
+        values[textKey] = resolvedText;
+      }
+
+      // Font
+      const explicitFont = customization?.layerFontFamilies?.[node.id];
+      const roleFont =
+        role === "secondary"
+          ? customization?.secondaryFontFamily
+          : customization?.primaryFontFamily;
+      const resolvedFont =
+        explicitFont ??
+        roleFont ??
+        values[fontKey] ??
+        (node as any).style?.fontFamily;
+      if (resolvedFont !== undefined) {
+        values[fontKey] = resolvedFont;
+      }
+
+      // Color
+      const explicitColor = customization?.layerColors?.[node.id];
+      const roleColor =
+        role === "secondary"
+          ? customization?.secondaryColor
+          : customization?.primaryColor;
+      const resolvedColor =
+        explicitColor ??
+        roleColor ??
+        values[colorKey] ??
+        (node as any).style?.textColor;
+      if (resolvedColor !== undefined) {
+        values[colorKey] = resolvedColor;
+      }
     }
   }
 
