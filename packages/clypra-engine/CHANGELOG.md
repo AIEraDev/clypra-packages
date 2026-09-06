@@ -1,5 +1,11 @@
 # [2.3.0](https://github.com/AIEraDev/clypra-studio/compare/v2.2.0...v2.3.0) (2026-06-30)
 
+## 1.8.0
+
+### Minor Changes
+
+- ca21c8e: Add versioned canonical text-effect and text-template contracts, deterministic normalization, stable effect layer IDs, template style dependency snapshots, render-plan diagnostics, and explicit enabled-state handling.
+
 ## 1.3.0
 
 ### Minor Changes
