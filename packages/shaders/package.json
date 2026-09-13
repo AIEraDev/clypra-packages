@@ -25,6 +25,10 @@
       "types": "./dist/noise/index.d.ts",
       "import": "./dist/noise/index.js"
     },
+    "./limits": {
+      "types": "./dist/limits.d.ts",
+      "import": "./dist/limits.js"
+    },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js"

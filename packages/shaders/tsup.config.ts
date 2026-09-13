@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     "utils/index": "src/utils/index.ts",
     "noise/index": "src/noise/index.ts",
+    limits: "src/limits.ts",
   },
   format: ["esm"],
   dts: true,
