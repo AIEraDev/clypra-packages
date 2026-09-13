@@ -311,7 +311,7 @@ export async function registerFont(
  */
 export async function listFonts(): Promise<string[]> {
   const r = await getRenderer();
-  // list_fonts returns a js_sys::Array of JsValue strings.
-  const arr = r.list_fonts() as unknown as string[];
-  return Array.from(arr);
+  // list_fonts returns a js_sys::Array of JsValue strings if implemented.
+  const arr = (r as any).list_fonts ? (r as any).list_fonts() : [];
+  return Array.from(arr as string[]);
 }
