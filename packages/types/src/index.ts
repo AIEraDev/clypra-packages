@@ -265,3 +265,9 @@ export type {
   ColorWheelState,
   BodyEffectState,
 } from "./vefx.js";
+
+// ---------------------------------------------------------------------------
+// Subject Capture & Body Effect Manifests
+// ---------------------------------------------------------------------------
+export * from "./subjectCapture.js";
+export * from "./bodyEffectManifest.js";

@@ -16,6 +16,9 @@ export * from "./utils";
 // Noise functions
 export * from "./noise";
 
+// Hardware Limits
+export * from "./limits";
+
 // Note: Other shader categories will be added in subsequent phases
 // export * from './color';
 // export * from './blur';
