@@ -1,5 +1,15 @@
 # @clypra-studio/types
 
+## 0.6.0
+
+### Minor Changes
+
+- 3a12236: feat(shaders): add body mask conditioning WGSL chunks, GPU limits JSON, and hardware limits exports
+
+  feat(types): extend BodyEffectManifest with SkeletalAnchorConfig, ParticleEmitterConfig, ParticleAnchorSource, SkeletalAnchorKeypoint, and SkeletalDepthMode types; add SubjectCapture types
+
+  fix(native-render-wasm): align index exports with current API surface
+
 ## 0.5.0
 
 ### Minor Changes

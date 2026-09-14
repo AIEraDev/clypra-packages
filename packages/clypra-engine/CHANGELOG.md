@@ -1,5 +1,13 @@
 # [2.3.0](https://github.com/AIEraDev/clypra-studio/compare/v2.2.0...v2.3.0) (2026-06-30)
 
+## 1.8.1
+
+### Patch Changes
+
+- Updated dependencies [3a12236]
+  - @clypra-studio/shaders@0.2.0
+  - @clypra-studio/types@0.6.0
+
 ## 1.8.0
 
 ### Minor Changes

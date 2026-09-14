@@ -1,6 +1,6 @@
 {
   "name": "@clypra-studio/runtime",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "MIT",
   "keywords": [
     "clypra",
@@ -46,7 +46,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clypra-studio/types": "workspace:^0.5.0"
+    "@clypra-studio/types": "workspace:^0.6.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

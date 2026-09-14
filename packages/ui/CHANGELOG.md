@@ -1,5 +1,14 @@
 # @clypra-studio/ui
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [3a12236]
+  - @clypra-studio/types@0.6.0
+  - @clypra-studio/engine@1.8.1
+  - @clypra-studio/runtime@0.2.3
+
 ## 0.3.0
 
 ### Minor Changes
