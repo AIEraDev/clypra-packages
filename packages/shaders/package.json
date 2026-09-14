@@ -32,10 +32,12 @@
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js"
-    }
+    },
+    "./gpu-limits.json": "./src/gpu-limits.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/gpu-limits.json"
   ],
   "scripts": {
     "build": "tsup",
