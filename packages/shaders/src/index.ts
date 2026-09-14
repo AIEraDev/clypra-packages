@@ -19,6 +19,9 @@ export * from "./noise";
 // Hardware Limits
 export * from "./limits";
 
+// Body Mask Conditioning
+export * from "./bodyMaskConditioning";
+
 // Note: Other shader categories will be added in subsequent phases
 // export * from './color';
 // export * from './blur';
