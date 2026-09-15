@@ -15,6 +15,7 @@ export type CompositingPrimitive =
   | "MaskedDualBlur"
   | "SkeletalSpriteAnchor"
   | "ParticleEmitter"
+  | "ChromaticAberration"
   | (string & {});
 
 export type LayerZOrder = "behind-subject" | "in-front" | "isolate-only";
@@ -66,7 +67,7 @@ export interface ParticleEmitterConfig {
 
 export interface BodyEffectRequirements {
   readonly minEngineVersion: string;
-  readonly captureType: "silhouette_mask" | "skeletal_pose" | "hybrid_body";
+  readonly captureType?: "silhouette_mask" | "skeletal_pose" | "hybrid_body" | "none" | (string & {});
   readonly maskCategory?: MaskCategory;
   readonly requiredLandmarks?: readonly string[];
   readonly minInferenceFps?: number;

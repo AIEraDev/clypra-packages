@@ -16,9 +16,6 @@ export * from "./effectsRegistry";
 export * from "./utils";
 export * from "./api";
 
-// Re-export renderer functions for direct use
-export * as CameraEffects from "./renderers/camera";
-export * as LightEffects from "./renderers/light";
 
 export type {
   // Effect types

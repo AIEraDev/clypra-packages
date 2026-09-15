@@ -12,60 +12,42 @@ export const chromaticAberrationEffect = {
   name: "Chromatic Aberration",
   version: "1.0.0",
   category: "video",
-  description: "RGB channel separation with lens distortion",
+  description: "Directional RGB channel displacement with optical edge-feather falloff",
+
+  compositing: {
+    primitive: "ChromaticAberration",
+    layerZOrder: "in-front",
+    blendMode: "normal",
+  },
 
   schema: {
     parameters: {
       amount: {
         type: "number",
-        default: 0.005,
+        default: 8.0,
         min: 0.0,
-        max: 0.05,
-        step: 0.001,
-        label: "Amount",
-        description: "Separation distance",
+        max: 50.0,
+        step: 0.5,
+        label: "Amount (px)",
+        description: "Separation distance in pixels",
       },
-      radial: {
-        type: "boolean",
-        default: true,
-        label: "Radial",
-        description: "Use radial distortion from center",
-      },
-      angle: {
+      angleDegrees: {
         type: "number",
         default: 0.0,
         min: 0.0,
         max: 360.0,
         step: 1.0,
-        label: "Angle",
+        label: "Angle (°)",
         description: "Direction of separation (degrees)",
       },
-      centerX: {
+      edgeFeather: {
         type: "number",
         default: 0.5,
         min: 0.0,
         max: 1.0,
-        step: 0.01,
-        label: "Center X",
-        description: "Horizontal center point",
-      },
-      centerY: {
-        type: "number",
-        default: 0.5,
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-        label: "Center Y",
-        description: "Vertical center point",
-      },
-      falloff: {
-        type: "number",
-        default: 1.0,
-        min: 0.0,
-        max: 3.0,
-        step: 0.1,
-        label: "Falloff",
-        description: "Radial falloff strength",
+        step: 0.05,
+        label: "Edge Feather",
+        description: "Optical lens falloff from center (0 = uniform across frame, 1 = perimeter only)",
       },
     },
     inputs: {
@@ -98,60 +80,38 @@ export const chromaticAberrationEffect = {
       params: {
         shader: `
           precision highp float;
-          
+
           uniform sampler2D uSource;
           uniform float uAmount;
-          uniform float uRadial;
-          uniform float uAngle;
-          uniform vec2 uCenter;
-          uniform float uFalloff;
-          
+          uniform float uAngleDegrees;
+          uniform float uEdgeFeather;
+          uniform vec2 uResolution;
+
           varying vec2 vUv;
-          
-          #define PI 3.14159265359
-          
+
           void main() {
             vec2 uv = vUv;
-            vec2 dir;
-            float dist = 0.0;
-            
-            if (uRadial > 0.5) {
-              // Radial distortion from center
-              vec2 toCenter = uv - uCenter;
-              dist = length(toCenter);
-              dir = normalize(toCenter);
-              
-              // Apply falloff
-              dist = pow(dist, uFalloff);
-            } else {
-              // Directional aberration
-              float rad = uAngle * PI / 180.0;
-              dir = vec2(cos(rad), sin(rad));
-              dist = 1.0;
-            }
-            
-            // Calculate channel offsets
-            float offset = uAmount * dist;
-            
-            vec2 rOffset = dir * offset * 1.0;   // Red pushed outward
-            vec2 gOffset = dir * offset * 0.0;   // Green stays centered
-            vec2 bOffset = dir * offset * -1.0;  // Blue pulled inward
-            
-            // Sample each channel
-            float r = texture2D(uSource, uv + rOffset).r;
-            float g = texture2D(uSource, uv + gOffset).g;
-            float b = texture2D(uSource, uv + bOffset).b;
-            
-            gl_FragColor = vec4(r, g, b, 1.0);
+            float rad = uAngleDegrees * 0.0174532925; // PI / 180.0
+            vec2 dir = vec2(cos(rad), sin(rad));
+            float distFromCenter = length(uv - vec2(0.5, 0.5)) * 2.0;
+            float featherFactor = mix(1.0, smoothstep(0.0, 1.0, distFromCenter), clamp(uEdgeFeather, 0.0, 1.0));
+            vec2 res = max(uResolution, vec2(1.0, 1.0));
+            vec2 offset = (dir * uAmount * featherFactor) / res;
+
+            float r = texture2D(uSource, clamp(uv + offset, vec2(0.0), vec2(1.0))).r;
+            float g = texture2D(uSource, uv).g;
+            float b = texture2D(uSource, clamp(uv - offset, vec2(0.0), vec2(1.0))).b;
+            float a = texture2D(uSource, uv).a;
+
+            gl_FragColor = vec4(r, g, b, a);
           }
         `,
         uniforms: {
           uSource: { type: "Texture", value: "@input.source" },
           uAmount: { type: "float", value: "@params.amount" },
-          uRadial: { type: "float", value: "@params.radial ? 1.0 : 0.0" },
-          uAngle: { type: "float", value: "@params.angle" },
-          uCenter: { type: "vec2", value: "[@params.centerX, @params.centerY]" },
-          uFalloff: { type: "float", value: "@params.falloff" },
+          uAngleDegrees: { type: "float", value: "@params.angleDegrees" },
+          uEdgeFeather: { type: "float", value: "@params.edgeFeather" },
+          uResolution: { type: "vec2", value: "@input.source.resolution" },
         },
       },
       inputs: {
@@ -178,7 +138,7 @@ export const chromaticAberrationEffect = {
 
   metadata: {
     author: "Clypra Studio",
-    tags: ["video", "chromatic", "aberration", "color", "distortion", "lens"],
+    tags: ["video", "chromatic", "aberration", "color", "distortion", "lens", "optical"],
     thumbnail: "chromatic-aberration-thumb.png",
     previewVideo: "chromatic-aberration-preview.mp4",
   },
@@ -201,54 +161,42 @@ export const chromaticAberrationEffect = {
   presets: [
     {
       id: "subtle",
-      name: "Subtle",
-      description: "Slight color fringing",
+      name: "Subtle Fringing",
+      description: "Slight optical color fringing",
       parameters: {
-        amount: 0.002,
-        radial: true,
-        angle: 0,
-        centerX: 0.5,
-        centerY: 0.5,
-        falloff: 1.0,
+        amount: 4.0,
+        angleDegrees: 0.0,
+        edgeFeather: 0.5,
       },
     },
     {
-      id: "lens-defect",
-      name: "Lens Defect",
-      description: "Realistic lens aberration",
+      id: "lens-fringing",
+      name: "Lens Perimeter Aberration",
+      description: "Aberration focused toward outer edges of frame",
       parameters: {
-        amount: 0.005,
-        radial: true,
-        angle: 0,
-        centerX: 0.5,
-        centerY: 0.5,
-        falloff: 1.5,
+        amount: 8.0,
+        angleDegrees: 0.0,
+        edgeFeather: 0.8,
       },
     },
     {
-      id: "strong-radial",
-      name: "Strong Radial",
-      description: "Heavy radial distortion",
+      id: "heavy-shift",
+      name: "Diagonal RGB Shift",
+      description: "Prominent 45-degree prism shift",
       parameters: {
-        amount: 0.015,
-        radial: true,
-        angle: 0,
-        centerX: 0.5,
-        centerY: 0.5,
-        falloff: 2.0,
+        amount: 20.0,
+        angleDegrees: 45.0,
+        edgeFeather: 0.2,
       },
     },
     {
-      id: "horizontal",
-      name: "Horizontal Shift",
-      description: "Horizontal RGB separation",
+      id: "vertical-split",
+      name: "Vertical Glitch Split",
+      description: "Vertical separation across entire frame",
       parameters: {
-        amount: 0.008,
-        radial: false,
-        angle: 0,
-        centerX: 0.5,
-        centerY: 0.5,
-        falloff: 1.0,
+        amount: 12.0,
+        angleDegrees: 90.0,
+        edgeFeather: 0.0,
       },
     },
   ],
