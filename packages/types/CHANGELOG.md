@@ -1,5 +1,14 @@
 # @clypra-studio/types
 
+## 0.6.1
+
+### Patch Changes
+
+- Extend body-effect manifest types for chromatic aberration support
+
+  - Add `"ChromaticAberration"` to `CompositingPrimitive` union
+  - Make `captureType` optional on `BodyEffectRequirements` and extend union with `"none"` to support pure video effects that require no body capture provider
+
 ## 0.6.0
 
 ### Minor Changes

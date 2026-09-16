@@ -1,5 +1,22 @@
 # [2.3.0](https://github.com/AIEraDev/clypra-studio/compare/v2.2.0...v2.3.0) (2026-06-30)
 
+## 1.9.0
+
+### Minor Changes
+
+- Add rgb-split, scanlines, and pixelate video effects; refactor effects registry
+
+  - Add `rgbSplitEffect`, `scanlinesEffect`, and `pixelateEffect` to the video effects catalogue
+  - Register new effects in `videoEffectsById` map and `videoEffects` array
+  - Overhaul `chromaticAberration` and `filmGrain` effect implementations
+  - Remove legacy camera and light renderer files (dolly, pan, rotate, shake, zoom, fire, flash, flicker, glow, lightLeak, lightLeak2, particles, vignette) in favour of the unified `effects/video/` architecture
+  - Update `effectsRegistry.ts` to drop removed renderer references
+
+### Patch Changes
+
+- Updated dependencies
+  - @clypra-studio/types@0.6.1
+
 ## 1.8.1
 
 ### Patch Changes
