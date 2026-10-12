@@ -92,3 +92,5 @@ export * from "./media/conform.js";
 export * from "./media/sourceCapture.js";
 export * from "./smartOverlays/index.js";
 export * from "./smartOverlays/runtime/canvasRenderer.js";
+// Shared sticker scanner and validator
+export * from "./stickers/stickerScanner.js";
