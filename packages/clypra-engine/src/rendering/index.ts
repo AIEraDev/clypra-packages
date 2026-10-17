@@ -6,6 +6,8 @@ import { renderTextTemplateToCanvas, resolveTextTemplateArtifact } from "./textT
 export * from "./types.js";
 export * from "./textEffectRenderer.js";
 export * from "./textTemplateRenderer.js";
+export * from "./textBubbles.js";
+export * from "./bubbleRenderer.js";
 
 export type CanonicalRenderInput =
   | { capability: "text-template"; artifact: unknown; context: CanonicalRenderContext }
