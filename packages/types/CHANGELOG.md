@@ -1,5 +1,11 @@
 # @clypra-studio/types
 
+## 0.6.2
+
+### Patch Changes
+
+- Release the current local package set as a coordinated patch update.
+
 ## 0.6.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @clypra-studio/runtime
 
+## 0.2.4
+
+### Patch Changes
+
+- Release the current local package set as a coordinated patch update.
+- Updated dependencies
+  - @clypra-studio/types@0.6.2
+
 ## 0.2.3
 
 ### Patch Changes

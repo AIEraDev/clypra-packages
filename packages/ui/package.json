@@ -1,6 +1,6 @@
 {
   "name": "@clypra-studio/ui",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "keywords": [
     "clypra",
@@ -26,10 +26,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clypra-studio/types": "workspace:^0.6.0",
-    "@clypra-studio/runtime": "workspace:^0.2.3",
-    "@clypra-studio/engine": "workspace:^1.10.0",
-    "@clypra/ui-color-picker": "^0.2.1",
+    "@clypra-studio/types": "workspace:^0.6.2",
+    "@clypra-studio/runtime": "workspace:^0.2.4",
+    "@clypra-studio/engine": "workspace:^1.10.1",
+    "@clypra/ui-color-picker": "^0.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

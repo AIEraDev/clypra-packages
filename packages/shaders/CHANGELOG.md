@@ -1,5 +1,11 @@
 # @clypra-studio/shaders
 
+## 0.2.1
+
+### Patch Changes
+
+- Release the current local package set as a coordinated patch update.
+
 ## 0.2.0
 
 ### Minor Changes

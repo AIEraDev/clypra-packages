@@ -1,5 +1,11 @@
 # @clypra-studio/native-render-wasm
 
+## 0.3.2
+
+### Patch Changes
+
+- Release the current local package set as a coordinated patch update.
+
 ## 0.3.1
 
 ### Patch Changes

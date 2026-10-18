@@ -1,5 +1,14 @@
 # [2.3.0](https://github.com/AIEraDev/clypra-studio/compare/v2.2.0...v2.3.0) (2026-06-30)
 
+## 1.10.1
+
+### Patch Changes
+
+- Release the current local package set as a coordinated patch update.
+- Updated dependencies
+  - @clypra-studio/shaders@0.2.1
+  - @clypra-studio/types@0.6.2
+
 ## 1.9.0
 
 ### Minor Changes

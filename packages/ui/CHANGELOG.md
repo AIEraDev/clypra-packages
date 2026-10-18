@@ -1,5 +1,16 @@
 # @clypra-studio/ui
 
+## 0.3.2
+
+### Patch Changes
+
+- Release the current local package set as a coordinated patch update.
+- Updated dependencies
+  - @clypra-studio/engine@1.10.1
+  - @clypra-studio/runtime@0.2.4
+  - @clypra-studio/types@0.6.2
+  - @clypra/ui-color-picker@0.2.2
+
 ## 0.3.1
 
 ### Patch Changes
