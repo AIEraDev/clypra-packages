@@ -1,5 +1,11 @@
 # [2.3.0](https://github.com/AIEraDev/clypra-studio/compare/v2.2.0...v2.3.0) (2026-06-30)
 
+## 1.10.2
+
+### Patch Changes
+
+- Add bubble assets utility and improve bubble renderer with comprehensive tests
+
 ## 1.10.1
 
 ### Patch Changes
