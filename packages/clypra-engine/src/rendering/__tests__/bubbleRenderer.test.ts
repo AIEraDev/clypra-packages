@@ -7,6 +7,7 @@ import {
   drawSpeechBubble,
   drawThoughtCloud,
   drawComicBurst,
+  drawChalkSpeechBubble,
   drawRibbonBanner,
 } from "../index.js";
 
@@ -75,6 +76,21 @@ describe("shared bubbleRenderer in @clypra-studio/engine", () => {
       const hasAlpha = Array.from(imgData).some((v, i) => i % 4 === 3 && v > 0);
       expect(hasAlpha).toBe(true);
     }
+  });
+
+  it("renders the reference-matched translucent chalk speech bubble", () => {
+    const canvas = createCanvas(260, 150);
+    const ctx = canvas.getContext("2d");
+    drawChalkSpeechBubble(ctx as any, 20, 15, 220, 120);
+
+    const image = ctx.getImageData(0, 0, 260, 150).data;
+    const hasVisiblePixels = Array.from(image).some((value, index) => index % 4 === 3 && value > 0);
+    expect(hasVisiblePixels).toBe(true);
+    const balloonCenter = ctx.getImageData(130, 55, 1, 1).data;
+    expect(balloonCenter[0]).toBeGreaterThan(balloonCenter[1]);
+    expect(balloonCenter[3]).toBeGreaterThan(0);
+    expect(balloonCenter[3]).toBeLessThan(255);
+    expect(renderBubbleBackground(ctx as any, "bubble-speech-chalk-rose", 20, 15, 220, 120)).toBe(true);
   });
 
   it("returns false and does not draw when preset is 'none'", () => {

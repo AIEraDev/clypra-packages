@@ -8,6 +8,7 @@ export * from "./textEffectRenderer.js";
 export * from "./textTemplateRenderer.js";
 export * from "./textBubbles.js";
 export * from "./bubbleRenderer.js";
+export * from "./bubbleAssets.js";
 
 export type CanonicalRenderInput =
   | { capability: "text-template"; artifact: unknown; context: CanonicalRenderContext }

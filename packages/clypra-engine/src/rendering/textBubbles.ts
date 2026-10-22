@@ -1,3 +1,5 @@
+import type { BubbleAssetDefinition } from "./bubbleAssets.js";
+
 /**
  * textBubbles.ts
  *
@@ -23,6 +25,35 @@ export type TextBubbleCategory =
   | "banner";
 
 export type BubbleRenderMode = "svg" | "raster" | "nine-slice" | "procedural";
+
+/** Geometric families exposed by the Studio bubble designer. */
+export type BubbleShape =
+  | "rounded"
+  | "speech"
+  | "cloud"
+  | "comic"
+  | "paper"
+  | "ribbon"
+  | "chalk";
+
+export type BubbleTexture = "none" | "chalk" | "hatch" | "paper";
+export type BubbleTailPosition = "bottom-left" | "bottom-center" | "bottom-right";
+
+/**
+ * Portable procedural art direction. This stays with a preset JSON file so
+ * a Studio-authored bubble can be rendered by any consumer of the engine.
+ */
+export interface BubbleAppearance {
+  shape: BubbleShape;
+  fillColor: string;
+  fillOpacity: number;
+  strokeColor: string;
+  strokeWidth: number;
+  cornerRadius: number;
+  tailPosition: BubbleTailPosition;
+  tailSize: number;
+  texture: BubbleTexture;
+}
 
 export interface TextBubblePadding {
   top: number;
@@ -72,6 +103,12 @@ export interface TextBubblePreset {
     sha256?: string;
     renderMode: BubbleRenderMode;
   };
+
+  /** Optional portable design controls for procedural custom bubbles. */
+  appearance?: BubbleAppearance;
+
+  /** Editable vector asset source; compiled previews are derived from this. */
+  definition?: BubbleAssetDefinition;
 
   layout: TextBubbleLayout;
 
