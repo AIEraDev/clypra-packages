@@ -189,6 +189,25 @@ async function getRenderer(): Promise<WasmRenderer> {
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
+ * Reset and dispose the active WASM renderer and its WebGPU device.
+ * Used during device-loss recovery to guarantee a brand new GPUDevice
+ * and clean resource reconstruction on subsequent calls.
+ */
+export function resetRenderer(): void {
+  if (renderer) {
+    try {
+      if (typeof (renderer as any).free === "function") {
+        (renderer as any).free();
+      }
+    } catch {
+      // best-effort cleanup
+    }
+    renderer = null;
+  }
+  initPromise = null;
+}
+
+/**
  * Probe the WASM renderer and return a handshake-shaped object.
  * Drop-in replacement for `probeNativeLab()` in nativeLabClient.ts.
  */
