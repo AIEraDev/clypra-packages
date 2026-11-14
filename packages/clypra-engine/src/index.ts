@@ -94,3 +94,5 @@ export * from "./smartOverlays/index.js";
 export * from "./smartOverlays/runtime/canvasRenderer.js";
 // Shared sticker scanner and validator
 export * from "./stickers/stickerScanner.js";
+// Animated captions engine and presets
+export * from "./captions/index.js";

@@ -9,6 +9,7 @@ export default defineConfig({
     "src/rendering/index.ts",
     "src/v2/backends/index.ts",
     "src/v2/contract/index.ts",
+    "src/captions/index.ts",
   ],
   format: ["esm", "cjs"],
   dts: true,

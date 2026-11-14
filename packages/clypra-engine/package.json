@@ -41,6 +41,11 @@
       "import": "./dist/rendering/index.js",
       "require": "./dist/rendering/index.cjs"
     },
+    "./captions": {
+      "types": "./dist/captions/index.d.ts",
+      "import": "./dist/captions/index.js",
+      "require": "./dist/captions/index.cjs"
+    },
     "./effects/video": {
       "types": "./dist/videoEffects/index.d.ts",
       "import": "./dist/videoEffects/index.js",
